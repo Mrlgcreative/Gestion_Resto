@@ -11,6 +11,7 @@ class Product extends Model
 {
     protected $fillable = [
         'category_id',
+        'currency_id',
         'name',
         'description',
         'base_price',
@@ -30,6 +31,11 @@ class Product extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function currency(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class);
     }
 
     public function ingredients(): BelongsToMany

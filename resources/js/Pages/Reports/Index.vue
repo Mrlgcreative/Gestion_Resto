@@ -79,7 +79,7 @@
           <template #cell-product="{ row }">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden">
-                <img v-if="row.image" :src="`/storage/${row.image}`" class="w-full h-full object-cover" />
+                <img v-if="row.image" :src="`${storageUrl}/${row.image}`" class="w-full h-full object-cover" />
               </div>
               <span class="font-medium">{{ row.name }}</span>
             </div>
@@ -235,6 +235,9 @@ import { ref, reactive } from 'vue';
 import { router } from '@inertiajs/vue3';
 import MainLayout from '@/Layouts/MainLayout.vue';
 import { Button, Card, Input, Table, Badge, StatCard, EmptyState, SalesChart } from '@/Components';
+
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
 
 const props = defineProps({
   filters: Object,

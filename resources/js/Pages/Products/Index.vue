@@ -44,7 +44,7 @@
         <div class="aspect-square bg-gray-100 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
           <img
             v-if="product.image"
-            :src="`/storage/${product.image}`"
+            :src="`${storageUrl}/${product.image}`"
             :alt="product.name"
             class="w-full h-full object-cover"
           />
@@ -66,7 +66,10 @@
         <div class="flex items-center justify-between border-t pt-4">
           <div>
             <p class="text-xs text-gray-500">Prix</p>
-            <p class="font-bold text-primary-600">{{ formatPrice(product.selling_price) }}</p>
+            <p class="font-bold text-primary-600">{{ formatPrice(product.selling_price, product.currency?.code || 'USD') }}</p>
+            <p v-if="getEquivalent(product)" class="text-xs text-gray-500">
+              ≈ {{ formatPrice(getEquivalent(product).price, getEquivalent(product).currency) }}
+            </p>
           </div>
           <div class="flex gap-1">
             <Button variant="ghost" size="sm" @click="$inertia.visit(`/products/${product.id}/edit`)">
@@ -126,9 +129,14 @@ import { router } from '@inertiajs/vue3';
 import MainLayout from '@/Layouts/MainLayout.vue';
 import { Button, Card, Badge, Pagination, SearchInput, Select, EmptyState, ConfirmDialog } from '@/Components';
 
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
+
 const props = defineProps({
   products: Object,
   categories: Array,
+  currencies: Array,
+  exchangeRates: Array,
   filters: Object,
 });
 
@@ -148,11 +156,41 @@ const statusOptions = [
   { value: 'unavailable', label: 'Indisponible' },
 ];
 
-const formatPrice = (price) => {
+const formatPrice = (price, currency = 'USD') => {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency: 'USD',
+    currency: currency,
   }).format(price);
+};
+
+// Calculer l'équivalent dans l'autre devise
+// Le système: USD est la devise de base, exchangeRate.rate = combien de devise locale pour 1 USD
+const getEquivalent = (product) => {
+  if (!props.exchangeRates || props.exchangeRates.length === 0) return null;
+  
+  const productCurrencyCode = product.currency?.code || 'USD';
+  
+  // Trouver le taux de change pour la devise du produit
+  const rate = props.exchangeRates.find(r => r.currency?.code === productCurrencyCode);
+  
+  if (productCurrencyCode === 'USD') {
+    // Produit en USD - chercher un taux pour convertir vers une autre devise
+    const otherRate = props.exchangeRates.find(r => r.currency?.code !== 'USD');
+    if (!otherRate) return null;
+    
+    return {
+      price: product.selling_price * otherRate.rate,
+      currency: otherRate.currency?.code
+    };
+  } else if (rate) {
+    // Produit dans une autre devise - convertir vers USD
+    return {
+      price: product.selling_price / rate.rate,
+      currency: 'USD'
+    };
+  }
+  
+  return null;
 };
 
 const applyFilters = () => {
@@ -173,7 +211,14 @@ const confirmDelete = (product) => {
 };
 
 const deleteProduct = () => {
-  router.delete(`/products/${productToDelete.value.id}`);
-  showDeleteModal.value = false;
+  router.delete(`/products/${productToDelete.value.id}`, {
+    onSuccess: () => {
+      showDeleteModal.value = false;
+      productToDelete.value = null;
+    },
+    onError: () => {
+      showDeleteModal.value = false;
+    },
+  });
 };
 </script>

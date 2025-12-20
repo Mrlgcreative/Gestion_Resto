@@ -15,6 +15,15 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
 
+        // Configurer les redirections pour auth/guest
+        $middleware->redirectGuestsTo('/login');
+        $middleware->redirectUsersTo('/dashboard');
+
+        // Exempter la route beacon-logout de la vérification CSRF
+        $middleware->validateCsrfTokens(except: [
+            'beacon-logout',
+        ]);
+
         // Alias pour les middlewares personnalisés
         $middleware->alias([
             'permission' => \App\Http\Middleware\CheckPermission::class,

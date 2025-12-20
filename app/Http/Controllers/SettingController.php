@@ -50,6 +50,12 @@ class SettingController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'restaurant_name' => ['required', 'string', 'max:255'],
             'address' => ['nullable', 'string'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'province' => ['nullable', 'string', 'max:100'],
+            'country' => ['nullable', 'string', 'max:100'],
+            'description' => ['nullable', 'string'],
+            'rccm' => ['nullable', 'string', 'max:100'],
+            'id_nat' => ['nullable', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'email'],
         ]);

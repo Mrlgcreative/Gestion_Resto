@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\Category;
+use App\Models\Currency;
+use App\Models\ExchangeRate;
 use App\Models\Ingredient;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -26,7 +28,7 @@ class ProductController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $query = Product::with('category');
+        $query = Product::with(['category', 'currency']);
 
         // Search
         if ($request->filled('search')) {
@@ -49,10 +51,16 @@ class ProductController extends Controller implements HasMiddleware
 
         $products = $query->orderBy('name')->paginate(15)->withQueryString();
         $categories = Category::orderBy('name')->get();
+        $currencies = Currency::all();
+        $exchangeRates = ExchangeRate::with('currency')
+            ->where('is_active', true)
+            ->get();
 
         return Inertia::render('Products/Index', [
             'products' => $products,
             'categories' => $categories,
+            'currencies' => $currencies,
+            'exchangeRates' => $exchangeRates,
             'filters' => $request->only(['search', 'category', 'status']),
         ]);
     }
@@ -61,10 +69,12 @@ class ProductController extends Controller implements HasMiddleware
     {
         $categories = Category::orderBy('name')->get();
         $ingredients = Ingredient::orderBy('name')->get();
+        $currencies = Currency::orderBy('name')->get();
 
         return Inertia::render('Products/Create', [
             'categories' => $categories,
             'ingredients' => $ingredients,
+            'currencies' => $currencies,
         ]);
     }
 
@@ -76,6 +86,7 @@ class ProductController extends Controller implements HasMiddleware
             'category_id' => ['required', 'exists:categories,id'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
+            'currency_id' => ['required', 'exists:currencies,id'],
             'status' => ['required', 'in:available,unavailable'],
             'image' => ['nullable', 'image', 'max:2048'],
             'ingredients' => ['nullable', 'array'],
@@ -124,11 +135,13 @@ class ProductController extends Controller implements HasMiddleware
     {
         $categories = Category::orderBy('name')->get();
         $ingredients = Ingredient::orderBy('name')->get();
+        $currencies = Currency::orderBy('name')->get();
 
         return Inertia::render('Products/Edit', [
             'product' => $product->load('ingredients'),
             'categories' => $categories,
             'ingredients' => $ingredients,
+            'currencies' => $currencies,
         ]);
     }
 
@@ -140,6 +153,7 @@ class ProductController extends Controller implements HasMiddleware
             'category_id' => ['required', 'exists:categories,id'],
             'base_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
+            'currency_id' => ['required', 'exists:currencies,id'],
             'status' => ['required', 'in:available,unavailable'],
             'image' => ['nullable', 'image', 'max:2048'],
             'ingredients' => ['nullable', 'array'],
@@ -162,6 +176,7 @@ class ProductController extends Controller implements HasMiddleware
             'category_id' => $validated['category_id'],
             'base_price' => $validated['base_price'],
             'selling_price' => $validated['selling_price'],
+            'currency_id' => $validated['currency_id'],
             'status' => $validated['status'],
             'image' => $validated['image'] ?? $product->image,
         ]);

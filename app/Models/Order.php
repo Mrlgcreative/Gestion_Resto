@@ -14,6 +14,7 @@ class Order extends Model
         'user_id',
         'server_id',
         'total_amount',
+        'currency_id',
         'currency',
         'exchange_rate',
         'status',
@@ -40,6 +41,15 @@ class Order extends Model
     public function server(): BelongsTo
     {
         return $this->belongsTo(Server::class);
+    }
+
+    /**
+     * Relation vers la devise (Currency model)
+     * Nommée currencyRelation pour éviter le conflit avec le champ 'currency' (string)
+     */
+    public function currencyRelation(): BelongsTo
+    {
+        return $this->belongsTo(Currency::class, 'currency_id');
     }
 
     public function items(): HasMany

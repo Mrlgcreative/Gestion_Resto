@@ -31,7 +31,7 @@
             <div class="w-32 h-32 rounded-xl bg-gray-100 overflow-hidden border-2 border-dashed border-gray-300">
               <img 
                 v-if="settings.logo" 
-                :src="`/storage/${settings.logo}`" 
+                :src="`${storageUrl}/${settings.logo}`" 
                 class="w-full h-full object-cover"
               />
               <div v-else class="w-full h-full flex items-center justify-center text-gray-400">
@@ -72,9 +72,47 @@
             <Textarea
               v-model="establishmentForm.address"
               label="Adresse complète"
-              rows="3"
+              rows="2"
               :error="establishmentForm.errors.address"
             />
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Input
+                v-model="establishmentForm.city"
+                label="Ville"
+                :error="establishmentForm.errors.city"
+              />
+              <Input
+                v-model="establishmentForm.province"
+                label="Province"
+                :error="establishmentForm.errors.province"
+              />
+              <Input
+                v-model="establishmentForm.country"
+                label="Pays"
+                :error="establishmentForm.errors.country"
+              />
+            </div>
+            <Textarea
+              v-model="establishmentForm.description"
+              label="Description de l'établissement"
+              rows="2"
+              placeholder="Une courte description de votre restaurant..."
+              :error="establishmentForm.errors.description"
+            />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                v-model="establishmentForm.rccm"
+                label="RCCM"
+                placeholder="Numéro RCCM"
+                :error="establishmentForm.errors.rccm"
+              />
+              <Input
+                v-model="establishmentForm.id_nat"
+                label="ID.NAT"
+                placeholder="Numéro ID National"
+                :error="establishmentForm.errors.id_nat"
+              />
+            </div>
             <div class="flex justify-end">
               <Button type="submit" variant="primary" :loading="establishmentForm.processing">
                 Enregistrer
@@ -453,6 +491,9 @@ import {
   ArrowsRightLeftIcon
 } from '@heroicons/vue/24/outline';
 
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
+
 const props = defineProps({
   settings: Object,
   currencies: Array,
@@ -476,6 +517,12 @@ const tabs = [
 const establishmentForm = useForm({
   restaurant_name: props.settings?.restaurant_name || '',
   address: props.settings?.address || '',
+  city: props.settings?.city || '',
+  province: props.settings?.province || '',
+  country: props.settings?.country || '',
+  description: props.settings?.description || '',
+  rccm: props.settings?.rccm || '',
+  id_nat: props.settings?.id_nat || '',
   phone: props.settings?.phone || '',
   email: props.settings?.email || '',
 });

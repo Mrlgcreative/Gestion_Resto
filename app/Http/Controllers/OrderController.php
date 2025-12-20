@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
 use App\Models\CashierSession;
+use App\Models\ExchangeRate;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Server;
@@ -31,7 +32,7 @@ class OrderController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Order::with(['server', 'session.user', 'items.product']);
+        $query = Order::with(['server', 'session.user', 'items.product', 'currencyRelation']);
 
         // Filtrage selon les permissions
         if ($request->get('view_own_only', false)) {
@@ -63,6 +64,11 @@ class OrderController extends Controller implements HasMiddleware
 
         $orders = $query->orderByDesc('created_at')->paginate(15)->withQueryString();
         $servers = Server::where('status', 'active')->orderBy('name')->get();
+        
+        // Get active exchange rates for currency equivalents
+        $exchangeRates = ExchangeRate::with('currency')
+            ->where('is_active', true)
+            ->get();
 
         return Inertia::render('Orders/Index', [
             'orders' => $orders,
@@ -70,6 +76,7 @@ class OrderController extends Controller implements HasMiddleware
             'filters' => $request->only(['search', 'status', 'server', 'date']),
             'canViewAll' => $request->get('can_view_all', false),
             'settings' => Setting::instance(),
+            'exchangeRates' => $exchangeRates,
         ]);
     }
 
@@ -86,18 +93,27 @@ class OrderController extends Controller implements HasMiddleware
         }
 
         $categories = \App\Models\Category::orderBy('name')->get();
-        $products = Product::with('category')
+        $products = Product::with(['category', 'currency'])
             ->where('status', 'available')
             ->orderBy('name')
             ->get();
 
         $servers = Server::where('status', 'active')->orderBy('name')->get();
 
+        // Get active exchange rates for currency equivalents
+        $exchangeRates = ExchangeRate::with('currency')
+            ->where('is_active', true)
+            ->get();
+        
+        $settings = Setting::instance();
+
         return Inertia::render('Orders/Create', [
             'currentSession' => $session,
             'categories' => $categories,
             'products' => $products,
             'servers' => $servers,
+            'exchangeRates' => $exchangeRates,
+            'settings' => $settings,
         ]);
     }
 
@@ -120,16 +136,25 @@ class OrderController extends Controller implements HasMiddleware
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.notes' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
+            'cart_currency' => ['nullable', 'string', 'max:10'],
+            'total_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
+        // Devise du panier (devise du premier produit ajouté)
+        $cartCurrencyCode = $validated['cart_currency'] ?? $session->currency ?? 'USD';
+        
+        // Trouver l'ID de la devise
+        $currency = \App\Models\Currency::where('code', $cartCurrencyCode)->first();
+        
         // Create order
         $order = Order::create([
             'session_id' => $session->id,
             'user_id' => auth()->id(),
             'server_id' => $validated['server_id'],
             'status' => 'pending',
-            'total_amount' => 0,
-            'currency' => $session->currency,
+            'total_amount' => $validated['total_amount'] ?? 0,
+            'currency_id' => $currency?->id,
+            'currency' => $cartCurrencyCode, // Garder aussi le code pour compatibilité
             'exchange_rate' => $session->exchange_rate ?? 1,
         ]);
 
@@ -148,17 +173,23 @@ class OrderController extends Controller implements HasMiddleware
     public function show(Order $order)
     {
         $user = auth()->user();
-        $order->load(['server', 'session.user', 'items.product', 'payments']);
+        $order->load(['server', 'session.user', 'items.product', 'payments', 'currencyRelation']);
         
         // Vérifier l'accès : view_all OU commande de sa propre session
         $isOwnOrder = $order->session && $order->session->user_id === $user->id;
         if (!$user->hasPermission('orders.view_all') && !$isOwnOrder) {
             abort(403, 'Vous n\'avez pas accès à cette commande.');
         }
+        
+        // Get active exchange rates for currency equivalents
+        $exchangeRates = ExchangeRate::with('currency')
+            ->where('is_active', true)
+            ->get();
 
         return Inertia::render('Orders/Show', [
             'order' => $order,
             'settings' => Setting::instance(),
+            'exchangeRates' => $exchangeRates,
             'canEdit' => $user->hasPermission('orders.edit') && $order->status === 'pending',
             'canCancel' => $user->hasPermission('orders.cancel') && $order->status !== 'paid',
             'canPay' => $user->hasPermission('payments.create') && $order->status === 'pending',

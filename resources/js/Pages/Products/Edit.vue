@@ -46,6 +46,14 @@
           />
         </div>
 
+        <Select
+          v-model="form.currency_id"
+          label="Devise"
+          :options="currencyOptions"
+          required
+          :error="form.errors.currency_id"
+        />
+
         <div v-if="form.base_price && form.selling_price" class="bg-gray-50 p-4 rounded-lg">
           <p class="text-sm text-gray-600">
             Marge: <span class="font-semibold" :class="profit >= 0 ? 'text-green-600' : 'text-red-600'">
@@ -56,7 +64,7 @@
 
         <!-- Current Image -->
         <div v-if="product.image" class="flex items-center gap-4">
-          <img :src="`/storage/${product.image}`" :alt="product.name" class="w-20 h-20 object-cover rounded-lg" />
+          <img :src="`${storageUrl}/${product.image}`" :alt="product.name" class="w-20 h-20 object-cover rounded-lg" />
           <span class="text-sm text-gray-500">Image actuelle</span>
         </div>
 
@@ -127,10 +135,14 @@ import { useForm } from '@inertiajs/vue3';
 import MainLayout from '@/Layouts/MainLayout.vue';
 import { Button, Card, Input, Textarea, Select, FileUpload } from '@/Components';
 
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
+
 const props = defineProps({
   product: Object,
   categories: Array,
   ingredients: Array,
+  currencies: Array,
 });
 
 const existingIngredients = props.product.ingredients?.map(i => ({
@@ -144,6 +156,7 @@ const form = useForm({
   category_id: props.product.category_id,
   base_price: props.product.base_price,
   selling_price: props.product.selling_price,
+  currency_id: props.product.currency_id || '',
   status: props.product.status,
   image: null,
   ingredients: existingIngredients,
@@ -151,6 +164,7 @@ const form = useForm({
 
 const categoryOptions = props.categories?.map(c => ({ value: c.id, label: c.name })) || [];
 const ingredientOptions = props.ingredients?.map(i => ({ value: i.id, label: `${i.name} (${i.unit})` })) || [];
+const currencyOptions = props.currencies?.map(c => ({ value: c.id, label: `${c.name} (${c.code})` })) || [];
 
 const statusOptions = [
   { value: 'available', label: 'Disponible' },

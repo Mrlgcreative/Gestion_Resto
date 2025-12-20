@@ -68,7 +68,7 @@
           <Badge variant="default">{{ value }} articles</Badge>
         </template>
         <template #cell-total_amount="{ row }">
-          <span class="font-semibold">{{ formatPrice(row.total_amount, row.currency?.code) }}</span>
+          <span class="font-semibold">{{ formatPrice(row.total_amount, row.currency_relation?.code) }}</span>
         </template>
         <template #cell-status="{ value }">
           <Badge :variant="getStatusVariant(value)">
@@ -137,6 +137,7 @@
         v-if="selectedOrderForInvoice"
         :order="selectedOrderForInvoice" 
         :settings="appSettings"
+        :exchange-rates="props.exchangeRates"
         :default-currency="selectedOrderForInvoice.currency?.code || 'USD'"
       />
     </Modal>
@@ -147,8 +148,20 @@
         <div class="bg-gray-50 p-4 rounded-lg">
           <p class="text-sm text-gray-600">Montant à payer</p>
           <p class="text-2xl font-bold text-primary-600">
-            {{ formatPrice(selectedOrder.total_amount, selectedOrder.currency?.code) }}
+            {{ formatPrice(selectedOrder.total_amount, selectedOrder.currency) }}
           </p>
+          <!-- Équivalents en autres devises -->
+          <div v-if="props.exchangeRates && props.exchangeRates.length > 0" class="mt-2 pt-2 border-t border-gray-200">
+            <p class="text-xs text-gray-500 mb-1">Équivalent :</p>
+            <div 
+              v-for="rate in props.exchangeRates" 
+              :key="'pay-equiv-' + rate.id"
+              class="flex justify-between text-sm"
+            >
+              <span class="text-gray-600">{{ rate.currency?.code || 'CDF' }}</span>
+              <span class="font-medium text-gray-700">{{ formatEquivalent(selectedOrder.total_amount, rate) }}</span>
+            </div>
+          </div>
         </div>
 
         <Input
@@ -164,7 +177,7 @@
         <div v-if="change > 0" class="bg-green-50 p-4 rounded-lg">
           <p class="text-sm text-green-600">Monnaie à rendre</p>
           <p class="text-xl font-bold text-green-700">
-            {{ formatPrice(change, selectedOrder.currency?.code) }}
+            {{ formatPrice(change, selectedOrder.currency) }}
           </p>
         </div>
 
@@ -198,6 +211,7 @@ const props = defineProps({
   servers: Array,
   filters: Object,
   settings: Object,
+  exchangeRates: Array,
 });
 
 const showInvoiceModal = ref(false);
@@ -269,10 +283,37 @@ const formatDate = (date) => {
 };
 
 const formatPrice = (price, currency = 'USD') => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency || 'USD',
-  }).format(price || 0);
+  const currencyCode = currency || 'USD';
+  try {
+    if (currencyCode === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currencyCode}`;
+  }
+};
+
+// Formater l'équivalent dans une autre devise
+const formatEquivalent = (amount, rate) => {
+  const convertedAmount = parseFloat(amount) * parseFloat(rate.rate);
+  const currencyCode = rate.currency?.code || rate.code || 'CDF';
+  
+  if (currencyCode === 'CDF') {
+    return new Intl.NumberFormat('fr-FR').format(Math.round(convertedAmount)) + ' FC';
+  }
+  
+  try {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(convertedAmount);
+  } catch (e) {
+    return `${convertedAmount.toFixed(2)} ${currencyCode}`;
+  }
 };
 
 const getStatusVariant = (status) => {

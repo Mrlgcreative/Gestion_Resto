@@ -11,7 +11,7 @@
           <div class="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center overflow-hidden ring-2 ring-primary-400">
             <img 
               v-if="appLogo" 
-              :src="`/storage/${appLogo}`" 
+              :src="`${storageUrl}/${appLogo}`" 
               class="w-full h-full object-cover"
             />
             <span v-else class="text-lg">🍽️</span>
@@ -91,6 +91,9 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
 
 const props = defineProps({
   pageTitle: {

@@ -66,7 +66,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-  show: {
+  modelValue: {
     type: Boolean,
     default: false,
   },
@@ -97,7 +97,9 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['confirm', 'cancel']);
+const emit = defineEmits(['update:modelValue', 'confirm', 'cancel']);
+
+const show = computed(() => props.modelValue);
 
 const iconContainerClasses = computed(() => ({
   'bg-red-100': props.variant === 'danger',
@@ -112,7 +114,10 @@ const confirmButtonClasses = computed(() => ({
 }));
 
 const confirm = () => emit('confirm');
-const cancel = () => emit('cancel');
+const cancel = () => {
+  emit('update:modelValue', false);
+  emit('cancel');
+};
 </script>
 
 <style scoped>

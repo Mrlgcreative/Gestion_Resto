@@ -10,13 +10,17 @@ class CashierSession extends Model
 {
     protected $fillable = [
         'user_id',
+        'currency_id',
         'opened_at',
         'closed_at',
+        'opening_amount',
+        'closing_amount',
         'total_cash',
         'total_orders',
         'currency',
         'exchange_rate',
         'status',
+        'notes',
     ];
 
     protected $appends = ['currency_data'];
@@ -26,6 +30,8 @@ class CashierSession extends Model
         return [
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'opening_amount' => 'decimal:2',
+            'closing_amount' => 'decimal:2',
             'total_cash' => 'decimal:2',
             'exchange_rate' => 'decimal:4',
         ];

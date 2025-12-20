@@ -46,7 +46,7 @@ class AuthController extends Controller
                 ['user_id' => Auth::id(), 'name' => Auth::user()->name]
             );
 
-            return redirect()->intended('/dashboard');
+            return redirect()->intended(route('dashboard'));
         }
 
         return back()->withErrors([
@@ -74,5 +74,24 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * Handle beacon logout (fermeture d'onglet)
+     */
+    public function beaconLogout(Request $request)
+    {
+        if (Auth::check()) {
+            ActivityLog::log(
+                'logout',
+                'User',
+                ['user_id' => Auth::id(), 'name' => Auth::user()->name, 'reason' => 'tab_closed']
+            );
+
+            Auth::logout();
+            $request->session()->invalidate();
+        }
+
+        return response()->noContent();
     }
 }

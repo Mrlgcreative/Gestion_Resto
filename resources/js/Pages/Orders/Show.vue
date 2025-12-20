@@ -72,7 +72,7 @@
               <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
                 <img
                   v-if="row.product?.image"
-                  :src="`/storage/${row.product.image}`"
+                  :src="`${storageUrl}/${row.product.image}`"
                   :alt="row.product?.name"
                   class="w-full h-full object-cover"
                 />
@@ -100,6 +100,18 @@
                 <span>Total</span>
                 <span class="text-primary-600">{{ formatPrice(order.total_amount) }}</span>
               </div>
+              <!-- Équivalent en autres devises -->
+              <div v-if="equivalentCurrencies.length > 0" class="bg-gray-50 rounded-lg p-3 mt-2">
+                <p class="text-xs text-gray-500 mb-2">Équivalent :</p>
+                <div 
+                  v-for="curr in equivalentCurrencies" 
+                  :key="'equiv-' + curr.code"
+                  class="flex justify-between text-sm"
+                >
+                  <span class="text-gray-600">{{ curr.code }}</span>
+                  <span class="font-semibold text-gray-800">{{ formatPriceInCurrency(getTotalInCurrency(curr.code), curr.code) }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -111,7 +123,8 @@
       <Receipt 
         :order="order" 
         :settings="appSettings"
-        :default-currency="order.currency?.code || 'USD'"
+        :exchange-rates="props.exchangeRates"
+        :default-currency="order.currency_relation?.code || 'USD'"
       />
     </Modal>
 
@@ -167,9 +180,13 @@ import { router, useForm, usePage } from '@inertiajs/vue3';
 import MainLayout from '@/Layouts/MainLayout.vue';
 import { Button, Card, Table, Badge, Modal, Input, Receipt } from '@/Components';
 
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
+
 const props = defineProps({
   order: Object,
   settings: Object,
+  exchangeRates: Array,
 });
 
 const showInvoiceModal = ref(false);
@@ -203,11 +220,69 @@ const formatDate = (date) => {
   });
 };
 
+// Devise de la commande (relation currencyRelation chargée depuis le backend)
+// order.currency_relation est un objet avec .code, .name, .symbol
+const orderCurrency = computed(() => props.order.currency_relation?.code || 'USD');
+
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: props.order.currency?.code || 'USD',
-  }).format(price || 0);
+  const currency = orderCurrency.value;
+  try {
+    if (currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+    }).format(parseFloat(price) || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
+  }
+};
+
+// Obtenir le taux de change pour une devise
+const getExchangeRate = (currencyCode) => {
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
+};
+
+// Convertir un montant d'une devise vers une autre
+const convertCurrency = (amount, fromCurrency, toCurrency) => {
+  if (fromCurrency === toCurrency) return parseFloat(amount);
+  const fromRate = getExchangeRate(fromCurrency);
+  const toRate = getExchangeRate(toCurrency);
+  const amountInUSD = parseFloat(amount) / fromRate;
+  return amountInUSD * toRate;
+};
+
+// Devises disponibles pour les équivalents
+const equivalentCurrencies = computed(() => {
+  const currencies = [{ code: 'USD', rate: 1 }];
+  props.exchangeRates?.forEach(rate => {
+    if (rate.currency?.code && rate.currency.code !== 'USD') {
+      currencies.push({ code: rate.currency.code, rate: parseFloat(rate.rate) });
+    }
+  });
+  return currencies.filter(c => c.code !== orderCurrency.value);
+});
+
+// Obtenir le total dans une autre devise
+const getTotalInCurrency = (targetCurrency) => {
+  return convertCurrency(props.order.total_amount, orderCurrency.value, targetCurrency);
+};
+
+// Formater un prix dans une devise spécifique
+const formatPriceInCurrency = (price, currency) => {
+  try {
+    if (currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+    }).format(parseFloat(price) || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
+  }
 };
 
 const getStatusVariant = (status) => {

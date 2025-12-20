@@ -8,7 +8,7 @@
           <div class="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden">
             <img 
               v-if="settings?.logo" 
-              :src="`/storage/${settings.logo}`" 
+              :src="`${storageUrl}/${settings.logo}`" 
               class="w-full h-full object-cover"
             />
             <span v-else class="text-3xl">🍽️</span>
@@ -118,9 +118,21 @@
                 <span class="text-lg font-bold text-gray-900">Total</span>
                 <span class="text-2xl font-bold text-primary-600">{{ formatCurrency(order.total_amount) }}</span>
               </div>
-              <p v-if="order.currency !== defaultCurrency" class="text-right text-sm text-gray-500 mt-1">
-                {{ order.currency }} (Taux: {{ order.exchange_rate }})
-              </p>
+              
+              <!-- Currency Equivalents -->
+              <div v-if="exchangeRates && exchangeRates.length > 0" class="mt-3 pt-3 border-t border-gray-100">
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Équivalent</p>
+                <div class="space-y-1">
+                  <div 
+                    v-for="rate in exchangeRates" 
+                    :key="rate.currency_id"
+                    class="flex justify-between text-sm text-gray-600"
+                  >
+                    <span>{{ rate.currency?.code || rate.code }}</span>
+                    <span class="font-medium">{{ formatEquivalent(order.total_amount, rate) }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -179,6 +191,9 @@
 <script setup>
 import { computed, ref } from 'vue';
 
+// URL de base pour les images storage
+const storageUrl = window.__STORAGE_URL__ || '/storage';
+
 const props = defineProps({
   order: {
     type: Object,
@@ -187,6 +202,10 @@ const props = defineProps({
   settings: {
     type: Object,
     default: null,
+  },
+  exchangeRates: {
+    type: Array,
+    default: () => [],
   },
   defaultCurrency: {
     type: String,
@@ -279,6 +298,19 @@ const formatTime = (date) => {
     hour: '2-digit',
     minute: '2-digit',
   });
+};
+
+// Format equivalent in other currency
+const formatEquivalent = (amount, rate) => {
+  const convertedAmount = parseFloat(amount) * parseFloat(rate.rate);
+  const currencyCode = rate.currency?.code || rate.code;
+  
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: currencyCode,
+    minimumFractionDigits: currencyCode === 'CDF' ? 0 : 2,
+    maximumFractionDigits: currencyCode === 'CDF' ? 0 : 2,
+  }).format(convertedAmount);
 };
 
 // Print

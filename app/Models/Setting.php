@@ -10,6 +10,12 @@ class Setting extends Model
     protected $fillable = [
         'restaurant_name',
         'address',
+        'city',
+        'province',
+        'country',
+        'description',
+        'rccm',
+        'id_nat',
         'phone',
         'email',
         'logo',
