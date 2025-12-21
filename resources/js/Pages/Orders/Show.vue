@@ -147,7 +147,7 @@
         <div class="bg-gray-50 p-4 rounded-lg">
           <p class="text-sm text-gray-600">Montant à payer</p>
           <p class="text-2xl font-bold text-primary-600">
-            {{ formatPrice(order.total_amount) }}
+            {{ formatPrice(calculatedSubtotal) }}
           </p>
         </div>
 
@@ -176,7 +176,7 @@
             type="button" 
             variant="success" 
             :loading="payForm.processing"
-            :disabled="parseFloat(payForm.amount_received) < order.total_amount"
+            :disabled="parseFloat(payForm.amount_received || 0) < calculatedSubtotal"
             @click="confirmPayment"
           >
             Confirmer le paiement
@@ -208,7 +208,7 @@ const appSettings = computed(() => props.settings || usePage().props.app);
 const showPayModal = ref(false);
 
 const payForm = useForm({
-  amount_received: props.order.total_amount,
+  amount_received: '',
 });
 
 const itemColumns = [
@@ -220,7 +220,7 @@ const itemColumns = [
 
 const change = computed(() => {
   if (!payForm.amount_received) return 0;
-  return Math.max(0, parseFloat(payForm.amount_received) - props.order.total_amount);
+  return Math.max(0, parseFloat(payForm.amount_received) - calculatedSubtotal.value);
 });
 
 const formatDate = (date) => {

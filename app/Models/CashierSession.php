@@ -79,13 +79,15 @@ class CashierSession extends Model
     }
 
     // Fermer la session
-    public function close(): void
+    public function close(float $closingAmount = 0, ?string $notes = null): void
     {
         $this->update([
             'closed_at' => now(),
+            'closing_amount' => $closingAmount,
             'status' => 'closed',
             'total_cash' => $this->calculateTotalCash(),
             'total_orders' => $this->orders()->count(),
+            'notes' => $notes,
         ]);
     }
 

@@ -2,10 +2,10 @@
 
 ## Prérequis
 
-- XAMPP installé avec Apache et MySQL
-- PHP 8.x
-- Composer
-- Node.js et npm
+-   XAMPP installé avec Apache et MySQL
+-   PHP 8.x
+-   Composer
+-   Node.js et npm
 
 ---
 
@@ -147,8 +147,9 @@ Les fichiers uploadés sont accessibles via : `http://gestion-resto.local/storag
 ### Problème de session
 
 Vérifier les paramètres de session dans `.env` :
-- `SESSION_DOMAIN` doit correspondre au domaine utilisé
-- `SESSION_PATH` doit être `/`
+
+-   `SESSION_DOMAIN` doit correspondre au domaine utilisé
+-   `SESSION_PATH` doit être `/`
 
 ---
 

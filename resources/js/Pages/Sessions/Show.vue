@@ -274,6 +274,13 @@ const getStatusLabel = (status) => {
 };
 
 const closeSession = () => {
-  closeForm.post(`/sessions/${props.session.id}/close`);
+  closeForm.post(`/sessions/${props.session.id}/close`, {
+    onSuccess: () => {
+      showCloseModal.value = false;
+    },
+    onError: () => {
+      // Le modal reste ouvert pour permettre à l'utilisateur de corriger les erreurs
+    },
+  });
 };
 </script>
