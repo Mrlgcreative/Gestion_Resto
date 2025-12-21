@@ -80,11 +80,24 @@
               <span class="font-medium">{{ row.product?.name }}</span>
             </div>
           </template>
-          <template #cell-unit_price="{ value }">
-            {{ formatPrice(value) }}
+          <template #cell-unit_price="{ row }">
+            <div>
+              <span>{{ formatItemPrice(row.unit_price, row.product) }}</span>
+              <!-- Afficher la conversion si devise différente du panier -->
+              <p v-if="getProductCurrency(row.product) !== orderCurrency" class="text-xs text-primary-600">
+                = {{ formatPrice(convertToCartCurrency(row.unit_price, row.product)) }}
+              </p>
+            </div>
           </template>
           <template #cell-subtotal="{ row }">
-            <span class="font-semibold">{{ formatPrice(row.unit_price * row.quantity) }}</span>
+            <div class="text-right">
+              <!-- Sous-total converti dans la devise du panier -->
+              <span class="font-semibold">{{ formatPrice(convertToCartCurrency(row.unit_price * row.quantity, row.product)) }}</span>
+              <!-- Afficher le prix original si devise différente -->
+              <p v-if="getProductCurrency(row.product) !== orderCurrency" class="text-xs text-gray-500">
+                ({{ formatItemPrice(row.unit_price * row.quantity, row.product) }})
+              </p>
+            </div>
           </template>
         </Table>
 
@@ -94,11 +107,11 @@
             <div class="w-64 space-y-2">
               <div class="flex justify-between">
                 <span class="text-gray-500">Sous-total</span>
-                <span>{{ formatPrice(order.total_amount) }}</span>
+                <span>{{ formatPrice(calculatedSubtotal) }}</span>
               </div>
               <div class="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span class="text-primary-600">{{ formatPrice(order.total_amount) }}</span>
+                <span class="text-primary-600">{{ formatPrice(calculatedSubtotal) }}</span>
               </div>
               <!-- Équivalent en autres devises -->
               <div v-if="equivalentCurrencies.length > 0" class="bg-gray-50 rounded-lg p-3 mt-2">
@@ -224,8 +237,44 @@ const formatDate = (date) => {
 // order.currency_relation est un objet avec .code, .name, .symbol
 const orderCurrency = computed(() => props.order.currency_relation?.code || 'USD');
 
-const formatPrice = (price) => {
-  const currency = orderCurrency.value;
+// Obtenir la devise d'un produit
+const getProductCurrency = (product) => {
+  return product?.currency?.code || 'USD';
+};
+
+// Obtenir le taux de change pour une devise (par rapport à USD)
+const getExchangeRate = (currencyCode) => {
+  if (currencyCode === 'USD') return 1;
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
+};
+
+// Convertir un montant de la devise du produit vers la devise du panier
+const convertToCartCurrency = (amount, product) => {
+  const fromCurrency = getProductCurrency(product);
+  const toCurrency = orderCurrency.value;
+  
+  if (fromCurrency === toCurrency) return parseFloat(amount);
+  
+  // Conversion via USD comme pivot
+  const fromRate = getExchangeRate(fromCurrency);
+  const toRate = getExchangeRate(toCurrency);
+  const amountInUSD = parseFloat(amount) / fromRate;
+  return amountInUSD * toRate;
+};
+
+// Calculer le sous-total en convertissant tous les articles dans la devise du panier
+const calculatedSubtotal = computed(() => {
+  if (!props.order.items) return 0;
+  return props.order.items.reduce((sum, item) => {
+    const itemTotal = item.unit_price * item.quantity;
+    return sum + convertToCartCurrency(itemTotal, item.product);
+  }, 0);
+});
+
+// Formater le prix d'un article dans la devise de son produit
+const formatItemPrice = (price, product) => {
+  const currency = getProductCurrency(product);
   try {
     if (currency === 'CDF') {
       return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
@@ -239,10 +288,19 @@ const formatPrice = (price) => {
   }
 };
 
-// Obtenir le taux de change pour une devise
-const getExchangeRate = (currencyCode) => {
-  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
-  return rate ? parseFloat(rate.rate) : 1;
+const formatPrice = (price) => {
+  const currency = orderCurrency.value;
+  try {
+    if (currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+    }).format(parseFloat(price) || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
+  }
 };
 
 // Convertir un montant d'une devise vers une autre
@@ -267,7 +325,7 @@ const equivalentCurrencies = computed(() => {
 
 // Obtenir le total dans une autre devise
 const getTotalInCurrency = (targetCurrency) => {
-  return convertCurrency(props.order.total_amount, orderCurrency.value, targetCurrency);
+  return convertCurrency(calculatedSubtotal.value, orderCurrency.value, targetCurrency);
 };
 
 // Formater un prix dans une devise spécifique

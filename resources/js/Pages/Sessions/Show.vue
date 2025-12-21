@@ -85,7 +85,7 @@
             </Badge>
           </template>
           <template #cell-total_amount="{ row }">
-            {{ formatPrice(row.total_amount) }}
+            {{ formatOrderTotal(row) }}
           </template>
           <template #cell-actions="{ row }">
             <Button variant="ghost" size="sm" @click="$inertia.visit(`/orders/${row.id}`)">
@@ -161,6 +161,7 @@ import { Button, Card, StatCard, Table, Badge, Modal, Input, Textarea, EmptyStat
 const props = defineProps({
   session: Object,
   stats: Object,
+  exchangeRates: Array,
 });
 
 const showCloseModal = ref(false);
@@ -193,11 +194,65 @@ const formatDate = (date) => {
   });
 };
 
-const formatPrice = (price) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: props.session.currency || 'USD',
-  }).format(price || 0);
+// Obtenir le taux de change pour une devise (par rapport à USD)
+const getExchangeRate = (currencyCode) => {
+  if (currencyCode === 'USD') return 1;
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
+};
+
+// Obtenir la devise d'un produit
+const getProductCurrency = (product) => {
+  return product?.currency?.code || 'USD';
+};
+
+// Obtenir la devise d'une commande
+const getOrderCurrency = (order) => {
+  return order.currency_relation?.code || order.currency || 'USD';
+};
+
+// Calculer le total d'une commande en convertissant les articles
+const calculateOrderTotal = (order) => {
+  if (!order.items || order.items.length === 0) return order.total_amount || 0;
+  
+  const orderCurrency = getOrderCurrency(order);
+  
+  return order.items.reduce((sum, item) => {
+    const itemTotal = item.unit_price * item.quantity;
+    const productCurrency = getProductCurrency(item.product);
+    
+    if (productCurrency === orderCurrency) {
+      return sum + itemTotal;
+    }
+    
+    // Conversion via USD comme pivot
+    const fromRate = getExchangeRate(productCurrency);
+    const toRate = getExchangeRate(orderCurrency);
+    const amountInUSD = itemTotal / fromRate;
+    return sum + (amountInUSD * toRate);
+  }, 0);
+};
+
+const formatPrice = (price, currency = null) => {
+  const currencyCode = currency || props.session.currency || 'USD';
+  try {
+    if (currencyCode === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currencyCode}`;
+  }
+};
+
+// Formater le total d'une commande
+const formatOrderTotal = (order) => {
+  const total = calculateOrderTotal(order);
+  const currency = getOrderCurrency(order);
+  return formatPrice(total, currency);
 };
 
 const getStatusVariant = (status) => {

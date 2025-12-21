@@ -48,10 +48,13 @@
         <div v-for="item in order.items" :key="item.id" class="mb-1">
           <div class="flex justify-between">
             <span class="flex-1 truncate pr-2">{{ item.product?.name }}</span>
-            <span class="font-bold">{{ formatPrice(item.total_price) }}</span>
+            <span class="font-bold">{{ formatPrice(convertToCartCurrency(item.unit_price * item.quantity, item.product)) }}</span>
           </div>
           <div class="text-[10px] text-gray-500 pl-2">
-            {{ item.quantity }} x {{ formatPrice(item.unit_price) }}
+            {{ item.quantity }} x {{ formatItemPrice(item.unit_price, item.product) }}
+            <span v-if="getProductCurrency(item.product) !== orderCurrency" class="text-primary-600">
+              (={{ formatPrice(convertToCartCurrency(item.unit_price, item.product)) }})
+            </span>
           </div>
         </div>
       </div>
@@ -60,7 +63,7 @@
       <div class="mb-3">
         <div class="flex justify-between">
           <span>Sous-total:</span>
-          <span>{{ formatPrice(subtotal) }}</span>
+          <span>{{ formatPrice(calculatedSubtotal) }}</span>
         </div>
         
         <div v-if="settings?.tax_rate > 0" class="flex justify-between text-gray-600">
@@ -76,7 +79,7 @@
         <div class="border-t border-double border-gray-400 mt-2 pt-2">
           <div class="flex justify-between font-bold text-sm">
             <span>TOTAL:</span>
-            <span>{{ formatPrice(order.total_amount) }}</span>
+            <span>{{ formatPrice(calculatedSubtotal) }}</span>
           </div>
           
           <!-- Currency Equivalent (autre devise) -->
@@ -189,19 +192,57 @@ const fullLocation = computed(() => {
   return parts.length > 0 ? parts.join(', ') : '';
 });
 
-// Calculs
+// Devise de la commande
+const orderCurrency = computed(() => props.order.currency || props.defaultCurrency);
+
+// Obtenir la devise d'un produit
+const getProductCurrency = (product) => {
+  return product?.currency?.code || 'USD';
+};
+
+// Obtenir le taux de change pour une devise (par rapport à USD)
+const getExchangeRate = (currencyCode) => {
+  if (currencyCode === 'USD') return 1;
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
+};
+
+// Convertir un montant de la devise du produit vers la devise du panier
+const convertToCartCurrency = (amount, product) => {
+  const fromCurrency = getProductCurrency(product);
+  const toCurrency = orderCurrency.value;
+  
+  if (fromCurrency === toCurrency) return parseFloat(amount);
+  
+  // Conversion via USD comme pivot
+  const fromRate = getExchangeRate(fromCurrency);
+  const toRate = getExchangeRate(toCurrency);
+  const amountInUSD = parseFloat(amount) / fromRate;
+  return amountInUSD * toRate;
+};
+
+// Calculer le sous-total en convertissant tous les articles dans la devise du panier
+const calculatedSubtotal = computed(() => {
+  if (!props.order.items) return 0;
+  return props.order.items.reduce((sum, item) => {
+    const itemTotal = item.unit_price * item.quantity;
+    return sum + convertToCartCurrency(itemTotal, item.product);
+  }, 0);
+});
+
+// Calculs (ancien subtotal gardé pour compatibilité)
 const subtotal = computed(() => {
   return props.order.items?.reduce((sum, item) => sum + parseFloat(item.total_price), 0) || 0;
 });
 
 const taxAmount = computed(() => {
   if (!props.settings?.tax_rate) return 0;
-  return subtotal.value * (props.settings.tax_rate / 100);
+  return calculatedSubtotal.value * (props.settings.tax_rate / 100);
 });
 
 const serviceAmount = computed(() => {
   if (!props.settings?.service_charge) return 0;
-  return subtotal.value * (props.settings.service_charge / 100);
+  return calculatedSubtotal.value * (props.settings.service_charge / 100);
 });
 
 // Mode de paiement
@@ -217,15 +258,38 @@ const paymentMethod = computed(() => {
   return methods[payment.method] || payment.method;
 });
 
-// Formatters
+// Formater le prix d'un article dans la devise de son produit
+const formatItemPrice = (price, product) => {
+  const currency = getProductCurrency(product);
+  try {
+    if (currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+    }).format(parseFloat(price) || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
+  }
+};
+
+// Formatters - prix dans la devise de la commande
 const formatPrice = (amount) => {
-  const currency = props.order.currency || props.defaultCurrency;
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  const currency = orderCurrency.value;
+  try {
+    if (currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(amount) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch (e) {
+    return `${parseFloat(amount || 0).toFixed(2)} ${currency}`;
+  }
 };
 
 const formatDate = (date) => {
@@ -252,13 +316,6 @@ const formatDateTime = (date) => {
     minute: '2-digit',
     second: '2-digit',
   });
-};
-
-// Obtenir le taux de change pour une devise
-const getExchangeRate = (currencyCode) => {
-  if (currencyCode === 'USD') return 1;
-  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
-  return rate ? parseFloat(rate.rate) : 1;
 };
 
 // Convertir un montant d'une devise vers une autre (USD comme pivot)
@@ -289,11 +346,10 @@ const formatEquivalent = (amount, rate) => {
 
 // Équivalent à afficher (si CDF -> montrer USD, si USD -> montrer CDF)
 const equivalentDisplay = computed(() => {
-  // Utiliser order.currency (le champ string) au lieu de defaultCurrency
-  const orderCurrency = props.order.currency || props.defaultCurrency;
+  const currencyCode = orderCurrency.value;
   let targetCode;
   
-  if (orderCurrency === 'CDF') {
+  if (currencyCode === 'CDF') {
     // Commande en CDF -> afficher équivalent USD
     targetCode = 'USD';
   } else {
@@ -301,7 +357,8 @@ const equivalentDisplay = computed(() => {
     targetCode = 'CDF';
   }
   
-  const amount = convertCurrency(props.order.total_amount, orderCurrency, targetCode);
+  // Utiliser le sous-total calculé (avec conversions)
+  const amount = convertCurrency(calculatedSubtotal.value, currencyCode, targetCode);
   
   let formatted;
   if (targetCode === 'CDF') {

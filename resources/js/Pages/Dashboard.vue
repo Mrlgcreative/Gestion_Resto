@@ -69,13 +69,29 @@
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      <!-- Ventes du jour -->
+      <!-- Ventes du jour USD -->
       <StatCard
-        v-if="stats.todaySales !== undefined"
-        label="Ventes du jour"
-        :value="stats.todaySales"
+        v-if="stats.todaySales?.USD !== undefined"
+        label="Ventes du jour (USD)"
+        :value="stats.todaySales.USD"
         format="currency"
-        :currency="stats.currency"
+        currency="USD"
+        variant="primary"
+      >
+        <template #icon>
+          <svg class="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </template>
+      </StatCard>
+
+      <!-- Ventes du jour CDF -->
+      <StatCard
+        v-if="stats.todaySales?.CDF !== undefined && stats.todaySales.CDF > 0"
+        label="Ventes du jour (FC)"
+        :value="stats.todaySales.CDF"
+        format="currency"
+        currency="CDF"
         variant="primary"
       >
         <template #icon>
@@ -166,8 +182,8 @@
               {{ getStatusLabel(value) }}
             </Badge>
           </template>
-          <template #cell-total_amount="{ value }">
-            {{ formatCurrency(value) }}
+          <template #cell-total_amount="{ row }">
+            {{ formatOrderTotal(row) }}
           </template>
         </Table>
 
@@ -193,7 +209,7 @@
               <p class="text-sm font-medium text-gray-900 truncate">{{ product.name }}</p>
               <p class="text-xs text-gray-500">{{ product.orders_count }} commandes</p>
             </div>
-            <p class="text-sm font-semibold text-gray-900">{{ formatCurrency(product.selling_price) }}</p>
+            <p class="text-sm font-semibold text-gray-900">{{ formatProductPrice(product) }}</p>
           </div>
         </div>
       </Card>
@@ -265,6 +281,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  exchangeRates: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 // Utiliser les permissions partagées globalement
@@ -295,11 +315,77 @@ const formatTime = (date) => {
   });
 };
 
+// Obtenir le taux de change pour une devise (par rapport à USD)
+const getExchangeRate = (currencyCode) => {
+  if (currencyCode === 'USD') return 1;
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
+};
+
+// Obtenir la devise d'une commande
+const getOrderCurrency = (order) => {
+  return order.currency_relation?.code || order.currency || 'USD';
+};
+
+// Obtenir la devise d'un produit
+const getProductCurrency = (product) => {
+  return product?.currency?.code || 'USD';
+};
+
+// Calculer le total d'une commande en convertissant les articles
+const calculateOrderTotal = (order) => {
+  if (!order.items || order.items.length === 0) return order.total_amount || 0;
+  
+  const orderCurrency = getOrderCurrency(order);
+  
+  return order.items.reduce((sum, item) => {
+    const itemTotal = item.unit_price * item.quantity;
+    const productCurrency = getProductCurrency(item.product);
+    
+    if (productCurrency === orderCurrency) {
+      return sum + itemTotal;
+    }
+    
+    // Conversion via USD comme pivot
+    const fromRate = getExchangeRate(productCurrency);
+    const toRate = getExchangeRate(orderCurrency);
+    const amountInUSD = itemTotal / fromRate;
+    return sum + (amountInUSD * toRate);
+  }, 0);
+};
+
+// Formater un prix avec sa devise
+const formatPrice = (price, currency = 'USD') => {
+  const currencyCode = currency || 'USD';
+  try {
+    if (currencyCode === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currencyCode}`;
+  }
+};
+
+// Formater le total d'une commande
+const formatOrderTotal = (order) => {
+  const total = calculateOrderTotal(order);
+  const currency = getOrderCurrency(order);
+  return formatPrice(total, currency);
+};
+
+// Formater le prix d'un produit
+const formatProductPrice = (product) => {
+  const currency = getProductCurrency(product);
+  return formatPrice(product.selling_price, currency);
+};
+
 const formatCurrency = (value) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: props.stats.currency || 'USD',
-  }).format(value || 0);
+  const currency = props.stats.currency || 'USD';
+  return formatPrice(value, currency);
 };
 
 const getStatusVariant = (status) => {

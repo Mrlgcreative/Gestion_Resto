@@ -51,6 +51,10 @@ const props = defineProps({
     type: String,
     default: 'USD',
   },
+  suffix: {
+    type: String,
+    default: '',
+  },
   trend: {
     type: Number,
     default: null,
@@ -106,9 +110,13 @@ const trendClasses = computed(() => ({
 
 const formattedValue = computed(() => {
   if (props.format === 'text') {
-    return props.value;
+    return props.value + props.suffix;
   }
   if (props.format === 'currency') {
+    // Gestion spéciale pour CDF
+    if (props.currency === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(props.value)) + ' FC';
+    }
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: props.currency,
@@ -118,8 +126,8 @@ const formattedValue = computed(() => {
     return `${props.value}%`;
   }
   if (typeof props.value === 'number') {
-    return new Intl.NumberFormat('fr-FR').format(props.value);
+    return new Intl.NumberFormat('fr-FR').format(props.value) + props.suffix;
   }
-  return props.value;
+  return props.value + props.suffix;
 });
 </script>

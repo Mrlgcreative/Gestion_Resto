@@ -32,7 +32,7 @@ class OrderController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Order::with(['server', 'session.user', 'items.product', 'currencyRelation']);
+        $query = Order::with(['server', 'session.user', 'items.product.currency', 'currencyRelation']);
 
         // Filtrage selon les permissions
         if ($request->get('view_own_only', false)) {
@@ -173,7 +173,7 @@ class OrderController extends Controller implements HasMiddleware
     public function show(Order $order)
     {
         $user = auth()->user();
-        $order->load(['server', 'session.user', 'items.product', 'payments', 'currencyRelation']);
+        $order->load(['server', 'session.user', 'items.product.currency', 'payments', 'currencyRelation']);
         
         // Vérifier l'accès : view_all OU commande de sa propre session
         $isOwnOrder = $order->session && $order->session->user_id === $user->id;
@@ -272,8 +272,41 @@ class OrderController extends Controller implements HasMiddleware
             return back()->with('error', 'Cette commande ne peut pas être payée.');
         }
 
+        // Charger les items avec leurs produits et devises pour le calcul
+        $order->load(['items.product.currency']);
+        
+        // Calculer le vrai total en convertissant les articles
+        $rates = [];
+        $exchangeRates = \App\Models\ExchangeRate::with('currency')->get();
+        foreach ($exchangeRates as $er) {
+            if ($er->currency) {
+                $rates[$er->currency->code] = floatval($er->rate);
+            }
+        }
+        $rates['USD'] = 1;
+        
+        $orderCurrency = $order->currency ?? 'USD';
+        $calculatedTotal = 0;
+        
+        foreach ($order->items as $item) {
+            $itemTotal = floatval($item->unit_price) * $item->quantity;
+            $productCurrency = $item->product?->currency?->code ?? 'USD';
+            
+            if ($productCurrency === $orderCurrency) {
+                $calculatedTotal += $itemTotal;
+            } else {
+                $fromRate = $rates[$productCurrency] ?? 1;
+                $toRate = $rates[$orderCurrency] ?? 1;
+                $amountInUSD = $itemTotal / $fromRate;
+                $calculatedTotal += $amountInUSD * $toRate;
+            }
+        }
+        
+        // Utiliser le total calculé pour la validation
+        $minAmount = $calculatedTotal > 0 ? $calculatedTotal : $order->total_amount;
+
         $validated = $request->validate([
-            'amount_received' => ['required', 'numeric', 'min:' . $order->total_amount],
+            'amount_received' => ['required', 'numeric', 'min:' . $minAmount],
         ]);
 
         $order->markAsPaid($validated['amount_received']);

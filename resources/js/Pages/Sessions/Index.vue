@@ -130,10 +130,18 @@ const formatDate = (date) => {
 };
 
 const formatPrice = (price, currency = 'USD') => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency || 'USD',
-  }).format(price || 0);
+  const currencyCode = currency || 'USD';
+  try {
+    if (currencyCode === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currencyCode}`;
+  }
 };
 
 const applyFilters = () => {

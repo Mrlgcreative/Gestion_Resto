@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\CashierSession;
 use App\Models\Currency;
+use App\Models\ExchangeRate;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -128,19 +129,63 @@ class CashierSessionController extends Controller implements HasMiddleware
             abort(403, 'Vous n\'avez pas accès à cette session.');
         }
 
-        $session->load(['user', 'orders.server', 'orders.items.product', 'orders.payments']);
+        $session->load(['user', 'orders.server', 'orders.items.product.currency', 'orders.currencyRelation', 'orders.payments']);
+
+        // Récupérer les taux de change
+        $exchangeRates = ExchangeRate::with('currency')->get();
+        $rates = [];
+        foreach ($exchangeRates as $er) {
+            if ($er->currency) {
+                $rates[$er->currency->code] = floatval($er->rate);
+            }
+        }
+        $rates['USD'] = 1;
+
+        $sessionCurrency = $session->currency ?? 'USD';
+
+        // Calculer le total des ventes avec conversion
+        $totalSales = 0;
+        foreach ($session->orders->where('status', 'paid') as $order) {
+            $orderCurrency = $order->currency ?? 'USD';
+            $orderTotal = 0;
+            
+            foreach ($order->items as $item) {
+                $itemTotal = floatval($item->unit_price) * $item->quantity;
+                $productCurrency = $item->product?->currency?->code ?? 'USD';
+                
+                if ($productCurrency === $orderCurrency) {
+                    $orderTotal += $itemTotal;
+                } else {
+                    $fromRate = $rates[$productCurrency] ?? 1;
+                    $toRate = $rates[$orderCurrency] ?? 1;
+                    $amountInUSD = $itemTotal / $fromRate;
+                    $orderTotal += $amountInUSD * $toRate;
+                }
+            }
+            
+            // Convertir le total de la commande dans la devise de la session si nécessaire
+            if ($orderCurrency === $sessionCurrency) {
+                $totalSales += $orderTotal;
+            } else {
+                $fromRate = $rates[$orderCurrency] ?? 1;
+                $toRate = $rates[$sessionCurrency] ?? 1;
+                $amountInUSD = $orderTotal / $fromRate;
+                $totalSales += $amountInUSD * $toRate;
+            }
+        }
 
         // Calculate totals
         $stats = [
             'total_orders' => $session->orders->count(),
-            'total_sales' => $session->orders->where('status', 'paid')->sum('total_amount'),
-            'total_cash' => $session->calculateTotalCash(),
-            'expected_cash' => $session->opening_amount + $session->calculateTotalCash(),
+            'total_sales' => round($totalSales, $sessionCurrency === 'CDF' ? 0 : 2),
+            'total_cash' => round($totalSales, $sessionCurrency === 'CDF' ? 0 : 2),
+            'expected_cash' => round($session->opening_amount + $totalSales, $sessionCurrency === 'CDF' ? 0 : 2),
         ];
 
         return Inertia::render('Sessions/Show', [
             'session' => $session,
             'stats' => $stats,
+            'exchangeRates' => $exchangeRates,
             'canForceClose' => $user->hasPermission('sessions.force_close'),
         ]);
     }

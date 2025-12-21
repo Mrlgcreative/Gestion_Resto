@@ -68,7 +68,7 @@
           <Badge variant="default">{{ value }} articles</Badge>
         </template>
         <template #cell-total_amount="{ row }">
-          <span class="font-semibold">{{ formatPrice(row.total_amount, row.currency_relation?.code) }}</span>
+          <span class="font-semibold">{{ formatPrice(calculateOrderTotal(row), getOrderCurrency(row)) }}</span>
         </template>
         <template #cell-status="{ value }">
           <Badge :variant="getStatusVariant(value)">
@@ -138,7 +138,7 @@
         :order="selectedOrderForInvoice" 
         :settings="appSettings"
         :exchange-rates="props.exchangeRates"
-        :default-currency="selectedOrderForInvoice.currency?.code || 'USD'"
+        :default-currency="selectedOrderForInvoice.currency_relation?.code || selectedOrderForInvoice.currency || 'USD'"
       />
     </Modal>
 
@@ -148,37 +148,22 @@
         <div class="bg-gray-50 p-4 rounded-lg">
           <p class="text-sm text-gray-600">Montant à payer</p>
           <p class="text-2xl font-bold text-primary-600">
-            {{ formatPrice(selectedOrder.total_amount, selectedOrder.currency) }}
+            {{ formatPrice(selectedOrderTotal, getOrderCurrency(selectedOrder)) }}
           </p>
-          <!-- Équivalents en autres devises -->
-          <div v-if="props.exchangeRates && props.exchangeRates.length > 0" class="mt-2 pt-2 border-t border-gray-200">
-            <p class="text-xs text-gray-500 mb-1">Équivalent :</p>
-            <div 
-              v-for="rate in props.exchangeRates" 
-              :key="'pay-equiv-' + rate.id"
-              class="flex justify-between text-sm"
-            >
-              <span class="text-gray-600">{{ rate.currency?.code || 'CDF' }}</span>
-              <span class="font-medium text-gray-700">{{ formatEquivalent(selectedOrder.total_amount, rate) }}</span>
+          <!-- Équivalent dans l'autre devise -->
+          <div v-if="paymentEquivalent" class="mt-2 pt-2 border-t border-gray-200">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-600">Équivalent {{ paymentEquivalent.code }} :</span>
+              <span class="font-medium text-gray-700">{{ paymentEquivalent.formatted }}</span>
             </div>
           </div>
         </div>
 
-        <Input
-          v-model="payForm.amount_received"
-          type="number"
-          step="0.01"
-          min="0"
-          label="Montant reçu"
-          required
-          :error="payForm.errors.amount_received"
-        />
-
-        <div v-if="change > 0" class="bg-green-50 p-4 rounded-lg">
-          <p class="text-sm text-green-600">Monnaie à rendre</p>
-          <p class="text-xl font-bold text-green-700">
-            {{ formatPrice(change, selectedOrder.currency) }}
-          </p>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Montant reçu</label>
+          <div class="bg-gray-100 border border-gray-300 rounded-lg px-4 py-3 text-lg font-semibold text-gray-800">
+            {{ formatPrice(selectedOrderTotal, getOrderCurrency(selectedOrder)) }}
+          </div>
         </div>
 
         <div class="flex justify-end gap-4">
@@ -189,7 +174,6 @@
             type="button" 
             variant="success" 
             :loading="payForm.processing"
-            :disabled="parseFloat(payForm.amount_received) < selectedOrder.total_amount"
             @click="confirmPayment"
           >
             Confirmer le paiement
@@ -282,6 +266,38 @@ const formatDate = (date) => {
   });
 };
 
+// Obtenir la devise d'une commande
+const getOrderCurrency = (order) => {
+  return order.currency_relation?.code || order.currency || 'USD';
+};
+
+// Obtenir la devise d'un produit
+const getProductCurrency = (product) => {
+  return product?.currency?.code || 'USD';
+};
+
+// Calculer le total d'une commande en convertissant les articles dans la devise de la commande
+const calculateOrderTotal = (order) => {
+  if (!order.items || order.items.length === 0) return order.total_amount || 0;
+  
+  const orderCurrency = getOrderCurrency(order);
+  
+  return order.items.reduce((sum, item) => {
+    const itemTotal = item.unit_price * item.quantity;
+    const productCurrency = getProductCurrency(item.product);
+    
+    if (productCurrency === orderCurrency) {
+      return sum + itemTotal;
+    }
+    
+    // Conversion via USD comme pivot
+    const fromRate = getExchangeRate(productCurrency);
+    const toRate = getExchangeRate(orderCurrency);
+    const amountInUSD = itemTotal / fromRate;
+    return sum + (amountInUSD * toRate);
+  }, 0);
+};
+
 const formatPrice = (price, currency = 'USD') => {
   const currencyCode = currency || 'USD';
   try {
@@ -297,24 +313,54 @@ const formatPrice = (price, currency = 'USD') => {
   }
 };
 
-// Formater l'équivalent dans une autre devise
-const formatEquivalent = (amount, rate) => {
-  const convertedAmount = parseFloat(amount) * parseFloat(rate.rate);
-  const currencyCode = rate.currency?.code || rate.code || 'CDF';
-  
-  if (currencyCode === 'CDF') {
-    return new Intl.NumberFormat('fr-FR').format(Math.round(convertedAmount)) + ' FC';
-  }
-  
-  try {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: currencyCode,
-    }).format(convertedAmount);
-  } catch (e) {
-    return `${convertedAmount.toFixed(2)} ${currencyCode}`;
-  }
+// Obtenir le taux de change pour une devise (par rapport à USD)
+const getExchangeRate = (currencyCode) => {
+  if (currencyCode === 'USD') return 1;
+  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
+  return rate ? parseFloat(rate.rate) : 1;
 };
+
+// Convertir un montant d'une devise vers une autre (USD comme pivot)
+const convertCurrency = (amount, fromCurrency, toCurrency) => {
+  if (fromCurrency === toCurrency) return parseFloat(amount);
+  const fromRate = getExchangeRate(fromCurrency);
+  const toRate = getExchangeRate(toCurrency);
+  const amountInUSD = parseFloat(amount) / fromRate;
+  return amountInUSD * toRate;
+};
+
+// Total calculé de la commande sélectionnée
+const selectedOrderTotal = computed(() => {
+  if (!selectedOrder.value) return 0;
+  return calculateOrderTotal(selectedOrder.value);
+});
+
+// Équivalent pour le modal de paiement (si CDF -> USD, si USD -> CDF)
+const paymentEquivalent = computed(() => {
+  if (!selectedOrder.value) return null;
+  
+  const orderCurrency = getOrderCurrency(selectedOrder.value);
+  const targetCode = orderCurrency === 'CDF' ? 'USD' : 'CDF';
+  
+  // Utiliser le total calculé
+  const amount = convertCurrency(selectedOrderTotal.value, orderCurrency, targetCode);
+  
+  let formatted;
+  if (targetCode === 'CDF') {
+    formatted = new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' FC';
+  } else {
+    try {
+      formatted = new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: targetCode,
+      }).format(amount);
+    } catch (e) {
+      formatted = amount.toFixed(2) + ' ' + targetCode;
+    }
+  }
+  
+  return { code: targetCode, amount, formatted };
+});
 
 const getStatusVariant = (status) => {
   const variants = {
@@ -336,7 +382,8 @@ const getStatusLabel = (status) => {
 
 const payOrder = (order) => {
   selectedOrder.value = order;
-  payForm.amount_received = order.total_amount;
+  // Utiliser le montant calculé
+  payForm.amount_received = calculateOrderTotal(order);
   showPayModal.value = true;
 };
 
