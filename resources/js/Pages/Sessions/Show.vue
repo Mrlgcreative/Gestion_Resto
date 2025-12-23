@@ -8,7 +8,7 @@
         <Button v-if="!session.closed_at" variant="primary" @click="$inertia.visit('/orders/create')">
           Nouvelle commande
         </Button>
-        <Button v-if="!session.closed_at" variant="danger" @click="showCloseModal = true">
+        <Button v-if="!session.closed_at" variant="danger" @click="openCloseModal">
           Fermer la session
         </Button>
       </div>
@@ -113,24 +113,13 @@
 
         <div class="bg-gray-50 p-4 rounded-lg">
           <p class="text-sm text-gray-600">
-            Montant attendu en caisse: <span class="font-bold text-lg">{{ formatPrice(stats.expected_cash) }}</span>
+            Montant attendu en caisse: <span class="font-bold text-lg">{{ formatPrice(stats.expected_cash, session.currency) }}</span>
           </p>
         </div>
 
-        <Input
-          v-model="closeForm.closing_amount"
-          type="number"
-          step="0.01"
-          min="0"
-          label="Montant réel en caisse"
-          required
-          :error="closeForm.errors.closing_amount"
-        />
-
-        <div v-if="closeForm.closing_amount && difference !== 0" class="p-4 rounded-lg" :class="difference > 0 ? 'bg-green-50' : 'bg-red-50'">
-          <p class="text-sm" :class="difference > 0 ? 'text-green-800' : 'text-red-800'">
-            {{ difference > 0 ? 'Excédent' : 'Manque' }}: <strong>{{ formatPrice(Math.abs(difference)) }}</strong>
-          </p>
+        <div class="bg-primary-50 p-4 rounded-lg border border-primary-200">
+          <p class="text-sm text-gray-600 mb-1">Montant de fermeture (auto-calculé)</p>
+          <p class="font-bold text-xl text-primary-700">{{ formatPrice(closeForm.closing_amount, session.currency) }}</p>
         </div>
 
         <Textarea
@@ -167,7 +156,7 @@ const props = defineProps({
 const showCloseModal = ref(false);
 
 const closeForm = useForm({
-  closing_amount: '',
+  closing_amount: props.stats.expected_cash || 0,
   notes: '',
 });
 
@@ -179,10 +168,11 @@ const orderColumns = [
   { key: 'actions', label: '' },
 ];
 
-const difference = computed(() => {
-  if (!closeForm.closing_amount) return 0;
-  return parseFloat(closeForm.closing_amount) - props.stats.expected_cash;
-});
+// Ouvrir le modal de fermeture et mettre à jour le montant
+const openCloseModal = () => {
+  closeForm.closing_amount = props.stats.expected_cash || 0;
+  showCloseModal.value = true;
+};
 
 const formatDate = (date) => {
   return new Date(date).toLocaleString('fr-FR', {

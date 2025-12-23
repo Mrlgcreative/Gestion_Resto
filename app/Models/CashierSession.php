@@ -55,7 +55,28 @@ class CashierSession extends Model
     // Accesseur pour récupérer les données de la devise
     public function getCurrencyDataAttribute(): ?Currency
     {
+        // D'abord essayer par currency_id, puis par code
+        if ($this->currency_id) {
+            return Currency::find($this->currency_id);
+        }
         return Currency::where('code', $this->currency)->first();
+    }
+
+    // Accesseur pour obtenir le code de la devise (avec fallback)
+    public function getCurrencyAttribute($value): string
+    {
+        // Si le code est déjà défini, le retourner
+        if ($value) {
+            return $value;
+        }
+        
+        // Sinon, récupérer depuis currency_id
+        if ($this->currency_id) {
+            $currency = Currency::find($this->currency_id);
+            return $currency?->code ?? 'USD';
+        }
+        
+        return 'USD';
     }
 
     public function isOpen(): bool

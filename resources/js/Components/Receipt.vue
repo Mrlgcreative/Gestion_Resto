@@ -39,54 +39,48 @@
 
       <!-- Items -->
       <div class="border-b border-dashed border-gray-400 pb-2 mb-2">
-        <div class="flex justify-between font-bold mb-1">
-          <span>Article</span>
-          <span>Total</span>
+        <div class="flex justify-between font-bold mb-1 text-[10px]">
+          <span class="w-6 text-center">QTE</span>
+          <span class="flex-1 text-center">DESIGNATION</span>
+          <span class="w-16 text-right">PRIX UNIT.</span>
         </div>
         <div class="border-b border-gray-300 mb-1"></div>
         
         <div v-for="item in order.items" :key="item.id" class="mb-1">
-          <div class="flex justify-between">
-            <span class="flex-1 truncate pr-2">{{ item.product?.name }}</span>
-            <span class="font-bold">{{ formatPrice(convertToCartCurrency(item.unit_price * item.quantity, item.product)) }}</span>
-          </div>
-          <div class="text-[10px] text-gray-500 pl-2">
-            {{ item.quantity }} x {{ formatItemPrice(item.unit_price, item.product) }}
-            <span v-if="getProductCurrency(item.product) !== orderCurrency" class="text-primary-600">
-              (={{ formatPrice(convertToCartCurrency(item.unit_price, item.product)) }})
-            </span>
+          <div class="flex justify-between text-[10px]">
+            <span class="w-6 text-center">{{ item.quantity }}</span>
+            <span class="flex-1 truncate px-1">{{ item.product?.name }}</span>
+            <span class="w-16 text-right">{{ formatItemPrice(item.unit_price, item.product) }}</span>
           </div>
         </div>
       </div>
 
       <!-- Totals -->
       <div class="mb-3">
-        <div class="flex justify-between">
-          <span>Sous-total:</span>
-          <span>{{ formatPrice(calculatedSubtotal) }}</span>
-        </div>
-        
-        <div v-if="settings?.tax_rate > 0" class="flex justify-between text-gray-600">
-          <span>TVA ({{ settings.tax_rate }}%):</span>
-          <span>{{ formatPrice(taxAmount) }}</span>
-        </div>
-        
-        <div v-if="settings?.service_charge > 0" class="flex justify-between text-gray-600">
-          <span>Service ({{ settings.service_charge }}%):</span>
-          <span>{{ formatPrice(serviceAmount) }}</span>
-        </div>
-
         <div class="border-t border-double border-gray-400 mt-2 pt-2">
-          <div class="flex justify-between font-bold text-sm">
-            <span>TOTAL:</span>
-            <span>{{ formatPrice(calculatedSubtotal) }}</span>
+          <!-- Total Facture en FC -->
+          <div class="flex justify-between font-bold">
+            <span>Total Facture:</span>
+            <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
           </div>
           
-          <!-- Currency Equivalent (autre devise) -->
-          <div v-if="equivalentDisplay" class="mt-2 pt-2 border-t border-dashed border-gray-300">
-            <div class="flex justify-between text-[11px]">
-              <span>Équivalent {{ equivalentDisplay.code }}:</span>
-              <span class="font-bold">{{ equivalentDisplay.formatted }}</span>
+          <!-- Net à payer -->
+          <div class="flex justify-between font-bold text-sm mt-1">
+            <span>NET A PAYER:</span>
+            <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
+          </div>
+          
+          <!-- Total en $ -->
+          <div class="flex justify-between mt-1">
+            <span>Total en $:</span>
+            <span class="font-bold">{{ formatPriceUSD(calculatedSubtotal) }}</span>
+          </div>
+          
+          <!-- Taux de change -->
+          <div class="mt-2 pt-2 border-t border-dashed border-gray-300">
+            <div class="flex justify-between text-[10px]">
+              <span>Taux du jour:</span>
+              <span class="font-bold">1 $ = {{ currentExchangeRate }} FC</span>
             </div>
           </div>
         </div>
@@ -110,7 +104,7 @@
 
       <!-- Footer -->
       <div class="text-center border-t border-dashed border-gray-400 pt-3">
-        <p class="font-bold">Merci de votre visite !</p>
+        <p class="font-bold">Bon appetit !</p>
         <p v-if="settings?.email" class="text-[10px] text-gray-500 mt-1">{{ settings.email }}</p>
         <div class="mt-2">
           <p class="text-[10px] text-gray-400">{{ formatDateTime(new Date()) }}</p>
@@ -392,181 +386,305 @@ const formatRate = (rate) => {
   }).format(rateValue) + ' ' + currencyCode;
 };
 
-// Print
-const printReceipt = () => {
-  const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Reçu #${props.order.id}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-          font-family: 'Courier New', Consolas, monospace; 
-          font-size: 10px; 
-          line-height: 1.3;
-          width: 48mm; 
-          padding: 1mm;
-          background: white;
-          color: #000;
-          font-weight: bold;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
+// Taux de change actuel CDF
+const currentExchangeRate = computed(() => {
+  const cdfRate = props.exchangeRates?.find(r => r.currency?.code === 'CDF');
+  if (cdfRate) {
+    return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(cdfRate.rate)));
+  }
+  return '2800'; // Valeur par défaut
+});
+
+// Formater le prix en CDF (Francs Congolais)
+const formatPriceCDF = (amount) => {
+  const currencyCode = orderCurrency.value;
+  let amountInCDF;
+  
+  if (currencyCode === 'CDF') {
+    amountInCDF = parseFloat(amount);
+  } else {
+    // Convertir vers CDF
+    amountInCDF = convertCurrency(amount, currencyCode, 'CDF');
+  }
+  
+  return new Intl.NumberFormat('fr-FR').format(Math.round(amountInCDF)) + ' FC';
+};
+
+// Formater le prix en USD
+const formatPriceUSD = (amount) => {
+  const currencyCode = orderCurrency.value;
+  let amountInUSD;
+  
+  if (currencyCode === 'USD') {
+    amountInUSD = parseFloat(amount);
+  } else {
+    // Convertir vers USD
+    amountInUSD = convertCurrency(amount, currencyCode, 'USD');
+  }
+  
+  try {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amountInUSD);
+  } catch (e) {
+    return amountInUSD.toFixed(2) + ' $';
+  }
+};
+
+// Générer le HTML d'une facture avec un label (Client ou Maison)
+const generateReceiptHTML = (label) => {
+  const receiptContent = receiptRef.value.innerHTML;
+  // Insérer le label après le header
+  const labelHTML = `
+    <div style="text-align: center; border: 2px solid #000; padding: 4px; margin: 8px 0; background: ${label === 'MAISON' ? '#f0f0f0' : '#fff'};">
+      <span style="font-weight: bold; font-size: 12px; letter-spacing: 2px;">*** ${label} ***</span>
+    </div>
+  `;
+  
+  // Insérer le label juste après le premier border-b (après le header)
+  const headerEndIndex = receiptContent.indexOf('<!-- Order Info -->');
+  if (headerEndIndex !== -1) {
+    return receiptContent.slice(0, headerEndIndex) + labelHTML + receiptContent.slice(headerEndIndex);
+  }
+  
+  // Fallback: ajouter au début
+  return labelHTML + receiptContent;
+};
+
+// CSS commun pour l'impression
+const getPrintStyles = () => `
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    font-family: 'Courier New', Consolas, monospace; 
+    font-size: 10px; 
+    line-height: 1.3;
+    width: 48mm; 
+    padding: 1mm;
+    background: white;
+    color: #000;
+    font-weight: bold;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Reset pour l'impression */
+  .receipt {
+    width: 100%;
+    background: white;
+    color: black;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size: 12px;
+    page-break-after: always;
+  }
+  
+  .receipt:last-child {
+    page-break-after: avoid;
+  }
+  
+  /* Séparateur entre les deux factures */
+  .receipt-separator {
+    border-top: 2px dashed #000;
+    margin: 10px 0;
+    padding-top: 10px;
+    page-break-before: always;
+  }
+  
+  /* Classes de texte */
+  .text-center { text-align: center; }
+  .text-right { text-align: right; }
+  .font-bold { font-weight: bold; }
+  .font-semibold { font-weight: 700; }
+  .font-medium { font-weight: 500; }
+  .uppercase { text-transform: uppercase; }
+  
+  /* Tailles de texte POS Giga 360 48mm */
+  .text-xs { font-size: 10px; }
+  .text-sm { font-size: 11px; }
+  .text-\\[8px\\] { font-size: 7px; }
+  .text-\\[9px\\] { font-size: 8px; }
+  .text-\\[10px\\] { font-size: 9px; }
+  .text-\\[11px\\] { font-size: 10px; }
+  
+  /* Flexbox */
+  .flex { display: flex; }
+  .flex-1 { flex: 1; }
+  .justify-between { justify-content: space-between; }
+  .justify-center { justify-content: center; }
+  .items-center { align-items: center; }
+  .gap-px { gap: 1px; }
+  .gap-3 { gap: 12px; }
+  
+  /* Couleurs de texte - TOUT EN NOIR pour l'impression */
+  .text-black { color: #000 !important; }
+  .text-gray-400 { color: #000 !important; }
+  .text-gray-500 { color: #000 !important; }
+  .text-gray-600 { color: #000 !important; }
+  
+  /* Forcer tout le texte en noir */
+  body, p, span, div {
+    color: #000 !important;
+  }
+  
+  /* Bordures */
+  .border-b { border-bottom-width: 1px; }
+  .border-t { border-top-width: 1px; }
+  .border-dashed { border-style: dashed; }
+  .border-double { border-style: double; border-width: 3px 0 0 0; }
+  .border-gray-300 { border-color: #d1d5db; }
+  .border-gray-400 { border-color: #9ca3af; }
+  
+  /* Espacements */
+  .p-4 { padding: 16px; }
+  .pb-2 { padding-bottom: 8px; }
+  .pb-3 { padding-bottom: 12px; }
+  .pt-2 { padding-top: 8px; }
+  .pt-3 { padding-top: 12px; }
+  .pl-2 { padding-left: 8px; }
+  .pr-2 { padding-right: 8px; }
+  .px-1 { padding-left: 4px; padding-right: 4px; }
+  .mb-1 { margin-bottom: 4px; }
+  .mb-2 { margin-bottom: 8px; }
+  .mb-3 { margin-bottom: 12px; }
+  .mt-1 { margin-top: 4px; }
+  .mt-2 { margin-top: 8px; }
+  .mt-3 { margin-top: 12px; }
+  
+  /* Largeurs pour le tableau */
+  .w-6 { width: 20px; }
+  .w-16 { width: 50px; }
+  
+  /* Dimensions POS Giga */
+  .h-10 { height: 32px; }
+  .w-10 { width: 32px; }
+  .h-8 { height: 28px; }
+  .w-8 { width: 28px; }
+  .h-4 { height: 14px; }
+  .w-4 { width: 14px; }
+  .rounded { border-radius: 4px; }
+  .rounded-lg { border-radius: 8px; }
+  
+  /* Utilitaires */
+  .truncate { 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    white-space: nowrap; 
+    max-width: 70px; 
+  }
+  .bg-white { background: white; }
+  .bg-black { background: black; }
+  .bg-gray-900 { background: #111827; }
+  .text-white { color: white; }
+  
+  /* Image / Logo pour POS Giga 58mm */
+  img {
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    object-fit: cover !important;
+    border-radius: 3px !important;
+    display: block;
+    margin: 0 auto;
+  }
+  
+  img.h-8,
+  img.w-8 {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  
+  img.rounded {
+    border-radius: 4px !important;
+  }
+  
+  /* Cacher les boutons d'action */
+  .print\\:hidden,
+  button {
+    display: none !important;
+  }
+  
+  /* Style pour le code-barres */
+  .barcode-bar {
+    background: black;
+    height: 20px;
+    display: inline-block;
+  }
+  
+  @media print {
+    @page { 
+      margin: 0; 
+      size: 48mm auto; 
+    }
+    body { 
+      width: 48mm; 
+      padding: 0.5mm;
+      font-size: 10px;
+    }
+    .print\\:hidden {
+      display: none !important;
+    }
+    .receipt {
+      page-break-after: always;
+    }
+    .receipt:last-child {
+      page-break-after: avoid;
+    }
+  }
+`;
+
+// Imprimer une seule facture avec un label
+const printSingleReceipt = (label) => {
+  return new Promise((resolve) => {
+    const printWindow = window.open('', '_blank');
+    const receiptContent = generateReceiptHTML(label);
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reçu #${props.order.id} - ${label}</title>
+        <style>${getPrintStyles()}</style>
+      </head>
+      <body>
+        <div class="receipt">
+          ${receiptContent}
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    
+    setTimeout(() => {
+      printWindow.print();
+      // Attendre que l'impression soit terminée ou annulée
+      printWindow.onafterprint = () => {
+        printWindow.close();
+        resolve();
+      };
+      // Fallback si onafterprint n'est pas supporté
+      setTimeout(() => {
+        if (!printWindow.closed) {
+          printWindow.close();
         }
-        
-        /* Reset pour l'impression */
-        .receipt {
-          width: 100%;
-          background: white;
-          color: black;
-          font-family: 'Courier New', Consolas, monospace;
-          font-size: 12px;
-        }
-        
-        /* Classes de texte */
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .font-bold { font-weight: bold; }
-        .font-semibold { font-weight: 700; }
-        .font-medium { font-weight: 500; }
-        .uppercase { text-transform: uppercase; }
-        
-        /* Tailles de texte POS Giga 360 48mm */
-        .text-xs { font-size: 10px; }
-        .text-sm { font-size: 11px; }
-        .text-\\[8px\\] { font-size: 7px; }
-        .text-\\[9px\\] { font-size: 8px; }
-        .text-\\[10px\\] { font-size: 9px; }
-        .text-\\[11px\\] { font-size: 10px; }
-        
-        /* Flexbox */
-        .flex { display: flex; }
-        .flex-1 { flex: 1; }
-        .justify-between { justify-content: space-between; }
-        .justify-center { justify-content: center; }
-        .items-center { align-items: center; }
-        .gap-px { gap: 1px; }
-        .gap-3 { gap: 12px; }
-        
-        /* Couleurs de texte - TOUT EN NOIR pour l'impression */
-        .text-black { color: #000 !important; }
-        .text-gray-400 { color: #000 !important; }
-        .text-gray-500 { color: #000 !important; }
-        .text-gray-600 { color: #000 !important; }
-        
-        /* Forcer tout le texte en noir */
-        body, p, span, div {
-          color: #000 !important;
-        }
-        
-        /* Bordures */
-        .border-b { border-bottom-width: 1px; }
-        .border-t { border-top-width: 1px; }
-        .border-dashed { border-style: dashed; }
-        .border-double { border-style: double; border-width: 3px 0 0 0; }
-        .border-gray-300 { border-color: #d1d5db; }
-        .border-gray-400 { border-color: #9ca3af; }
-        
-        /* Espacements */
-        .p-4 { padding: 16px; }
-        .pb-2 { padding-bottom: 8px; }
-        .pb-3 { padding-bottom: 12px; }
-        .pt-2 { padding-top: 8px; }
-        .pt-3 { padding-top: 12px; }
-        .pl-2 { padding-left: 8px; }
-        .pr-2 { padding-right: 8px; }
-        .mb-1 { margin-bottom: 4px; }
-        .mb-2 { margin-bottom: 8px; }
-        .mb-3 { margin-bottom: 12px; }
-        .mt-1 { margin-top: 4px; }
-        .mt-2 { margin-top: 8px; }
-        .mt-3 { margin-top: 12px; }
-        
-        /* Dimensions POS Giga */
-        .h-10 { height: 32px; }
-        .w-10 { width: 32px; }
-        .h-8 { height: 28px; }
-        .w-8 { width: 28px; }
-        .h-4 { height: 14px; }
-        .w-4 { width: 14px; }
-        .rounded { border-radius: 4px; }
-        .rounded-lg { border-radius: 8px; }
-        
-        /* Utilitaires */
-        .truncate { 
-          overflow: hidden; 
-          text-overflow: ellipsis; 
-          white-space: nowrap; 
-          max-width: 90px; 
-        }
-        .bg-white { background: white; }
-        .bg-black { background: black; }
-        .bg-gray-900 { background: #111827; }
-        .text-white { color: white; }
-        
-        /* Image / Logo pour POS Giga 58mm */
-        img {
-          width: 32px !important;
-          height: 32px !important;
-          max-width: 32px !important;
-          max-height: 32px !important;
-          object-fit: cover !important;
-          border-radius: 3px !important;
-          display: block;
-          margin: 0 auto;
-        }
-        
-        img.h-8,
-        img.w-8 {
-          width: 32px !important;
-          height: 32px !important;
-        }
-        
-        img.rounded {
-          border-radius: 4px !important;
-        }
-        
-        /* Cacher les boutons d'action */
-        .print\\:hidden,
-        button {
-          display: none !important;
-        }
-        
-        /* Style pour le code-barres */
-        .barcode-bar {
-          background: black;
-          height: 20px;
-          display: inline-block;
-        }
-        
-        @media print {
-          @page { 
-            margin: 0; 
-            size: 48mm auto; 
-          }
-          body { 
-            width: 48mm; 
-            padding: 0.5mm;
-            font-size: 10px;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      ${receiptRef.value.innerHTML}
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 250);
+        resolve();
+      }, 1000);
+    }, 250);
+  });
+};
+
+// Print - Imprimer deux factures une par une (Client puis Maison)
+const printReceipt = async () => {
+  // 1. Imprimer la facture CLIENT
+  await printSingleReceipt('CLIENT');
+  
+  // 2. Petite pause puis imprimer la facture MAISON
+  setTimeout(async () => {
+    await printSingleReceipt('MAISON');
+  }, 500);
 };
 </script>
 

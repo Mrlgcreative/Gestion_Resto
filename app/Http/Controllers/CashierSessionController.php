@@ -106,9 +106,13 @@ class CashierSessionController extends Controller implements HasMiddleware
             'notes' => ['nullable', 'string'],
         ]);
 
+        // Récupérer le code de la devise
+        $currency = Currency::find($validated['currency_id']);
+
         $session = CashierSession::create([
             'user_id' => auth()->id(),
             'currency_id' => $validated['currency_id'],
+            'currency' => $currency->code, // Stocker le code de la devise
             'opening_amount' => $validated['opening_amount'],
             'opened_at' => now(),
             'notes' => $validated['notes'] ?? null,
