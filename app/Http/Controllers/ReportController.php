@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\ExchangeRate;
 use App\Models\Ingredient;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Server;
 use App\Models\CashierSession;
+use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -18,6 +20,9 @@ use Inertia\Inertia;
 
 class ReportController extends Controller implements HasMiddleware
 {
+    // Cache des taux de change pour éviter les requêtes répétées
+    private $exchangeRates = null;
+
     public static function middleware(): array
     {
         return [
@@ -25,6 +30,57 @@ class ReportController extends Controller implements HasMiddleware
             new Middleware('permission.ownership:reports'),
             new Middleware('permission:reports.export', only: ['export']),
         ];
+    }
+
+    /**
+     * Récupérer les taux de change actifs
+     */
+    private function getExchangeRates(): array
+    {
+        if ($this->exchangeRates === null) {
+            $this->exchangeRates = ExchangeRate::with('currency')
+                ->where('is_active', true)
+                ->get()
+                ->mapWithKeys(function ($rate) {
+                    return [$rate->currency->code => (float) $rate->rate];
+                })
+                ->toArray();
+        }
+        return $this->exchangeRates;
+    }
+
+    /**
+     * Convertir un montant d'une devise vers une autre
+     */
+    private function convertAmount(float $amount, string $fromCurrency, string $toCurrency): float
+    {
+        if ($fromCurrency === $toCurrency) {
+            return $amount;
+        }
+
+        $rates = $this->getExchangeRates();
+        $fromRate = $rates[$fromCurrency] ?? 1;
+        $toRate = $rates[$toCurrency] ?? 1;
+
+        // Convertir en USD (base) puis en devise cible
+        $amountInBase = $amount / $fromRate;
+        return $amountInBase * $toRate;
+    }
+
+    /**
+     * Déterminer la devise à utiliser pour les rapports
+     */
+    private function getReportCurrency($user)
+    {
+        // D'abord essayer la session ouverte de l'utilisateur
+        $openSession = $user->openSession();
+        if ($openSession && $openSession->currency) {
+            return $openSession->currency;
+        }
+
+        // Sinon, utiliser la devise par défaut
+        $defaultCurrency = Setting::instance()->defaultCurrency;
+        return $defaultCurrency ? $defaultCurrency->code : 'USD';
     }
 
     public function index(Request $request)
@@ -43,17 +99,20 @@ class ReportController extends Controller implements HasMiddleware
         // Pour les caissiers (view_own), on ne montre que leurs propres données
         $userId = $viewOwnOnly ? $user->id : null;
 
+        // Déterminer la devise pour les rapports
+        $reportCurrency = $this->getReportCurrency($user);
+
         // Sales Data
-        $salesData = $this->getSalesData($startDate, $endDate, $userId);
+        $salesData = $this->getSalesData($startDate, $endDate, $userId, $reportCurrency);
 
         // Products Data
-        $productsData = $this->getProductsData($startDate, $endDate, $userId);
+        $productsData = $this->getProductsData($startDate, $endDate, $userId, $reportCurrency);
 
         // Servers Data (masqué pour view_own)
-        $serversData = $viewOwnOnly ? null : $this->getServersData($startDate, $endDate);
+        $serversData = $viewOwnOnly ? null : $this->getServersData($startDate, $endDate, $reportCurrency);
 
         // Sessions Data
-        $sessionsData = $this->getSessionsData($startDate, $endDate, $userId);
+        $sessionsData = $this->getSessionsData($startDate, $endDate, $userId, $reportCurrency);
 
         // Stocks Data (masqué pour view_own)
         $stocksData = $viewOwnOnly ? null : $this->getStocksData();
@@ -72,12 +131,13 @@ class ReportController extends Controller implements HasMiddleware
             'sessionsData' => $sessionsData,
             'stocksData' => $stocksData,
             'activityData' => $activityData,
+            'reportCurrency' => $reportCurrency,
             'canViewAll' => $request->get('can_view_all', false),
             'canExport' => $user->hasPermission('reports.export'),
         ]);
     }
 
-    private function getSalesData($startDate, $endDate, $userId = null)
+    private function getSalesData($startDate, $endDate, $userId = null, $reportCurrency = 'USD')
     {
         $query = Order::where('status', 'paid')
             ->whereBetween('created_at', [$startDate, $endDate]);
@@ -86,8 +146,12 @@ class ReportController extends Controller implements HasMiddleware
             $query->whereHas('session', fn($q) => $q->where('user_id', $userId));
         }
 
-        $totalRevenue = (clone $query)->sum('total_amount');
-        $totalOrders = (clone $query)->count();
+        // Récupérer toutes les commandes pour conversion
+        $orders = (clone $query)->get();
+        $totalRevenue = $orders->sum(function ($order) use ($reportCurrency) {
+            return $this->convertAmount((float) $order->total_amount, $order->currency ?? 'USD', $reportCurrency);
+        });
+        $totalOrders = $orders->count();
 
         $canceledQuery = Order::where('status', 'canceled')
             ->whereBetween('created_at', [$startDate, $endDate]);
@@ -96,6 +160,7 @@ class ReportController extends Controller implements HasMiddleware
         }
         $canceledOrders = $canceledQuery->count();
 
+        // Ventes journalières avec conversion
         $dailySalesQuery = Order::where('status', 'paid')
             ->whereBetween('created_at', [$startDate, $endDate]);
         if ($userId) {
@@ -103,29 +168,33 @@ class ReportController extends Controller implements HasMiddleware
         }
         
         $dailySales = $dailySalesQuery
-            ->selectRaw('DATE(created_at) as date, SUM(total_amount) as revenue, COUNT(*) as orders_count')
-            ->groupBy('date')
-            ->orderBy('date')
             ->get()
-            ->map(function ($item) {
+            ->groupBy(fn($order) => Carbon::parse($order->created_at)->format('Y-m-d'))
+            ->map(function ($dayOrders, $date) use ($reportCurrency) {
+                $revenue = $dayOrders->sum(function ($order) use ($reportCurrency) {
+                    return $this->convertAmount((float) $order->total_amount, $order->currency ?? 'USD', $reportCurrency);
+                });
+                $ordersCount = $dayOrders->count();
                 return [
-                    'date' => Carbon::parse($item->date)->format('d/m/Y'),
-                    'revenue' => $item->revenue,
-                    'orders_count' => $item->orders_count,
-                    'average' => $item->orders_count > 0 ? $item->revenue / $item->orders_count : 0,
+                    'date' => Carbon::parse($date)->format('d/m/Y'),
+                    'revenue' => round($revenue, $reportCurrency === 'CDF' ? 0 : 2),
+                    'orders_count' => $ordersCount,
+                    'average' => $ordersCount > 0 ? round($revenue / $ordersCount, $reportCurrency === 'CDF' ? 0 : 2) : 0,
                 ];
-            });
+            })
+            ->sortKeys()
+            ->values();
 
         return [
-            'total_revenue' => $totalRevenue,
+            'total_revenue' => round($totalRevenue, $reportCurrency === 'CDF' ? 0 : 2),
             'total_orders' => $totalOrders,
-            'average_order' => $totalOrders > 0 ? $totalRevenue / $totalOrders : 0,
+            'average_order' => $totalOrders > 0 ? round($totalRevenue / $totalOrders, $reportCurrency === 'CDF' ? 0 : 2) : 0,
             'canceled_orders' => $canceledOrders,
             'daily_sales' => $dailySales,
         ];
     }
 
-    private function getProductsData($startDate, $endDate, $userId = null)
+    private function getProductsData($startDate, $endDate, $userId = null, $reportCurrency = 'USD')
     {
         $baseQuery = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
@@ -141,51 +210,79 @@ class ReportController extends Controller implements HasMiddleware
             });
         }
 
-        $topProducts = (clone $baseQuery)
-            ->selectRaw('products.id, products.name, products.image, SUM(order_items.quantity) as quantity_sold, SUM(order_items.total_price) as revenue')
-            ->groupBy('products.id', 'products.name', 'products.image')
-            ->orderByDesc('quantity_sold')
-            ->limit(10)
+        // Récupérer les items avec la devise de la commande pour conversion
+        $items = (clone $baseQuery)
+            ->select('order_items.*', 'products.id as product_id', 'products.name', 'products.image', 'orders.currency as order_currency')
             ->get();
 
-        $totalItemsSold = (clone $baseQuery)->sum('order_items.quantity');
-        $uniqueProducts = (clone $baseQuery)->distinct('product_id')->count('product_id');
-        $totalRevenue = (clone $baseQuery)->sum('order_items.total_price');
+        // Grouper par produit et calculer avec conversion
+        $topProducts = $items->groupBy('product_id')
+            ->map(function ($productItems) use ($reportCurrency) {
+                $first = $productItems->first();
+                $quantitySold = $productItems->sum('quantity');
+                $revenue = $productItems->sum(function ($item) use ($reportCurrency) {
+                    return $this->convertAmount((float) $item->total_price, $item->order_currency ?? 'USD', $reportCurrency);
+                });
+                return [
+                    'id' => $first->product_id,
+                    'name' => $first->name,
+                    'image' => $first->image,
+                    'quantity_sold' => $quantitySold,
+                    'revenue' => round($revenue, $reportCurrency === 'CDF' ? 0 : 2),
+                ];
+            })
+            ->sortByDesc('quantity_sold')
+            ->take(10)
+            ->values();
+
+        $totalItemsSold = $items->sum('quantity');
+        $uniqueProducts = $items->pluck('product_id')->unique()->count();
+        $totalRevenue = $items->sum(function ($item) use ($reportCurrency) {
+            return $this->convertAmount((float) $item->total_price, $item->order_currency ?? 'USD', $reportCurrency);
+        });
 
         return [
             'top_products' => $topProducts,
             'total_items_sold' => $totalItemsSold,
             'unique_products' => $uniqueProducts,
-            'total_revenue' => $totalRevenue,
+            'total_revenue' => round($totalRevenue, $reportCurrency === 'CDF' ? 0 : 2),
             'top_product' => $topProducts->first(),
         ];
     }
 
-    private function getServersData($startDate, $endDate)
+    private function getServersData($startDate, $endDate, $reportCurrency = 'USD')
     {
-        $servers = Server::leftJoin('orders', function ($join) use ($startDate, $endDate) {
-                $join->on('servers.id', '=', 'orders.server_id')
-                    ->where('orders.status', 'paid')
-                    ->whereBetween('orders.created_at', [$startDate, $endDate]);
-            })
-            ->selectRaw('servers.id, servers.name, COUNT(orders.id) as orders_count, COALESCE(SUM(orders.total_amount), 0) as revenue')
-            ->groupBy('servers.id', 'servers.name')
-            ->orderByDesc('revenue')
-            ->get()
-            ->map(function ($server) {
-                return [
-                    'id' => $server->id,
-                    'name' => $server->name,
-                    'orders_count' => $server->orders_count,
-                    'revenue' => $server->revenue,
-                    'average' => $server->orders_count > 0 ? $server->revenue / $server->orders_count : 0,
-                ];
+        // Récupérer tous les serveurs
+        $allServers = Server::all();
+        
+        // Récupérer toutes les commandes avec leur devise
+        $orders = Order::where('status', 'paid')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->whereNotNull('server_id')
+            ->get();
+
+        // Grouper les commandes par serveur
+        $ordersByServer = $orders->groupBy('server_id');
+
+        $servers = $allServers->map(function ($server) use ($ordersByServer, $reportCurrency) {
+            $serverOrders = $ordersByServer->get($server->id, collect());
+            $ordersCount = $serverOrders->count();
+            $revenue = $serverOrders->sum(function ($order) use ($reportCurrency) {
+                return $this->convertAmount((float) $order->total_amount, $order->currency ?? 'USD', $reportCurrency);
             });
+            return [
+                'id' => $server->id,
+                'name' => $server->name,
+                'orders_count' => $ordersCount,
+                'revenue' => round($revenue, $reportCurrency === 'CDF' ? 0 : 2),
+                'average' => $ordersCount > 0 ? round($revenue / $ordersCount, $reportCurrency === 'CDF' ? 0 : 2) : 0,
+            ];
+        })->sortByDesc('revenue')->values();
 
         $activeServers = Server::where('status', 'active')->count();
         $totalOrders = $servers->sum('orders_count');
         $totalRevenue = $servers->sum('revenue');
-        $averageRevenue = $activeServers > 0 ? $totalRevenue / $activeServers : 0;
+        $averageRevenue = $activeServers > 0 ? round($totalRevenue / $activeServers, $reportCurrency === 'CDF' ? 0 : 2) : 0;
 
         return [
             'servers' => $servers,
@@ -196,9 +293,9 @@ class ReportController extends Controller implements HasMiddleware
         ];
     }
 
-    private function getSessionsData($startDate, $endDate, $userId = null)
+    private function getSessionsData($startDate, $endDate, $userId = null, $reportCurrency = 'USD')
     {
-        $query = CashierSession::with('user')
+        $query = CashierSession::with(['user', 'orders' => fn($q) => $q->where('status', 'paid')])
             ->whereBetween('opened_at', [$startDate, $endDate]);
         
         if ($userId) {
@@ -206,18 +303,29 @@ class ReportController extends Controller implements HasMiddleware
         }
         
         $sessions = $query
-            ->withSum(['orders' => fn($q) => $q->where('status', 'paid')], 'total_amount')
             ->orderByDesc('opened_at')
             ->get()
-            ->map(function ($session) {
-                $expectedAmount = $session->opening_amount + ($session->orders_sum_total_amount ?? 0);
+            ->map(function ($session) use ($reportCurrency) {
+                // Calculer le total des commandes avec conversion
+                $ordersTotal = $session->orders->sum(function ($order) use ($reportCurrency) {
+                    return $this->convertAmount((float) $order->total_amount, $order->currency ?? 'USD', $reportCurrency);
+                });
+                
+                // Convertir les montants de la session
+                $openingAmount = $this->convertAmount((float) $session->opening_amount, $session->currency ?? 'USD', $reportCurrency);
+                $closingAmount = $session->closing_amount !== null 
+                    ? $this->convertAmount((float) $session->closing_amount, $session->currency ?? 'USD', $reportCurrency)
+                    : null;
+                
+                $expectedAmount = $openingAmount + $ordersTotal;
+                
                 return [
                     'id' => $session->id,
                     'user' => $session->user,
                     'currency' => $session->currency,
-                    'opening_amount' => $session->opening_amount,
-                    'closing_amount' => $session->closing_amount,
-                    'expected_amount' => $expectedAmount,
+                    'opening_amount' => round($openingAmount, $reportCurrency === 'CDF' ? 0 : 2),
+                    'closing_amount' => $closingAmount !== null ? round($closingAmount, $reportCurrency === 'CDF' ? 0 : 2) : null,
+                    'expected_amount' => round($expectedAmount, $reportCurrency === 'CDF' ? 0 : 2),
                     'opened_at' => $session->opened_at,
                     'closed_at' => $session->closed_at,
                 ];
@@ -233,8 +341,8 @@ class ReportController extends Controller implements HasMiddleware
             'sessions' => $sessions,
             'total_sessions' => $totalSessions,
             'closed_sessions' => $closedSessions,
-            'total_collected' => $totalCollected,
-            'total_difference' => $totalDifference,
+            'total_collected' => round($totalCollected, $reportCurrency === 'CDF' ? 0 : 2),
+            'total_difference' => round($totalDifference, $reportCurrency === 'CDF' ? 0 : 2),
         ];
     }
 

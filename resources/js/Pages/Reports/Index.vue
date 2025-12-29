@@ -41,9 +41,9 @@
     <!-- Sales Report -->
     <div v-if="activeTab === 'sales'" class="space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Chiffre d'affaires" :value="salesData.total_revenue" format="currency" variant="success" />
+        <StatCard label="Chiffre d'affaires" :value="salesData.total_revenue" format="currency" :currency="reportCurrency" variant="success" />
         <StatCard label="Nombre de commandes" :value="salesData.total_orders" format="number" />
-        <StatCard label="Panier moyen" :value="salesData.average_order" format="currency" />
+        <StatCard label="Panier moyen" :value="salesData.average_order" format="currency" :currency="reportCurrency" />
         <StatCard label="Commandes annulées" :value="salesData.canceled_orders" format="number" variant="danger" />
       </div>
 
@@ -71,7 +71,7 @@
         <StatCard label="Produits vendus" :value="productsData.total_items_sold" format="number" />
         <StatCard label="Produits différents" :value="productsData.unique_products" format="number" />
         <StatCard label="Meilleur vendeur" :value="productsData.top_product?.name || '-'" format="text" variant="success" />
-        <StatCard label="Revenu produits" :value="productsData.total_revenue" format="currency" />
+        <StatCard label="Revenu produits" :value="productsData.total_revenue" format="currency" :currency="reportCurrency" />
       </div>
 
       <Card title="Palmarès des produits">
@@ -97,7 +97,7 @@
         <StatCard label="Serveurs actifs" :value="serversData.active_servers" format="number" />
         <StatCard label="Total commandes" :value="serversData.total_orders" format="number" />
         <StatCard label="Meilleur serveur" :value="serversData.top_server?.name || '-'" format="text" variant="success" />
-        <StatCard label="Chiffre moyen/serveur" :value="serversData.average_revenue" format="currency" />
+        <StatCard label="Chiffre moyen/serveur" :value="serversData.average_revenue" format="currency" :currency="reportCurrency" />
       </div>
 
       <Card title="Performance des serveurs">
@@ -117,8 +117,8 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Sessions ouvertes" :value="sessionsData.total_sessions" format="number" />
         <StatCard label="Sessions fermées" :value="sessionsData.closed_sessions" format="number" />
-        <StatCard label="Total encaissé" :value="sessionsData.total_collected" format="currency" variant="success" />
-        <StatCard label="Écart total" :value="sessionsData.total_difference" format="currency" :variant="sessionsData.total_difference >= 0 ? 'success' : 'danger'" />
+        <StatCard label="Total encaissé" :value="sessionsData.total_collected" format="currency" :currency="reportCurrency" variant="success" />
+        <StatCard label="Écart total" :value="sessionsData.total_difference" format="currency" :currency="reportCurrency" :variant="sessionsData.total_difference >= 0 ? 'success' : 'danger'" />
       </div>
 
       <Card title="Historique des sessions">
@@ -147,7 +147,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Total ingrédients" :value="stocksData.total_ingredients" format="number" />
         <StatCard label="En alerte" :value="stocksData.low_stock_count" format="number" variant="danger" />
-        <StatCard label="Valeur du stock" :value="stocksData.total_value" format="currency" />
+        <StatCard label="Valeur du stock" :value="stocksData.total_value" format="currency" :currency="reportCurrency" />
         <StatCard label="Mouvements" :value="stocksData.movements_count" format="number" />
       </div>
 
@@ -247,6 +247,7 @@ const props = defineProps({
   sessionsData: { type: Object, default: () => ({}) },
   stocksData: { type: Object, default: () => ({}) },
   activityData: { type: Object, default: () => ({}) },
+  reportCurrency: { type: String, default: 'USD' },
 });
 
 const activeTab = ref('sales');
@@ -302,10 +303,18 @@ const movementColumns = [
 ];
 
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(price || 0);
+  const currencyCode = props.reportCurrency;
+  try {
+    if (currencyCode === 'CDF') {
+      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    }
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(price || 0);
+  } catch (e) {
+    return `${parseFloat(price || 0).toFixed(2)} ${currencyCode}`;
+  }
 };
 
 const formatDate = (date) => {

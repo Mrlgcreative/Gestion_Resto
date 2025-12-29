@@ -5,13 +5,7 @@
         <Button variant="secondary" @click="$inertia.visit('/orders')">
           ← Retour
         </Button>
-        <Button 
-          v-if="order.status === 'pending'" 
-          variant="success" 
-          @click="showPayModal = true"
-        >
-          Encaisser
-        </Button>
+        
         <Button 
           v-if="order.status === 'pending'" 
           variant="danger" 
