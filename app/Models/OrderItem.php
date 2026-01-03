@@ -13,6 +13,9 @@ class OrderItem extends Model
         'quantity',
         'unit_price',
         'total_price',
+        'kitchen_status',
+        'kitchen_note',
+        'ready_at',
     ];
 
     protected function casts(): array
@@ -20,6 +23,7 @@ class OrderItem extends Model
         return [
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
+            'ready_at' => 'datetime',
         ];
     }
 

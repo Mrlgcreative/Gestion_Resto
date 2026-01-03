@@ -5,6 +5,7 @@ use App\Http\Controllers\CashierSessionController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IngredientController;
+use App\Http\Controllers\KitchenController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReportController;
@@ -107,4 +108,15 @@ Route::middleware('auth')->group(function () {
 
     // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+
+    // Kitchen
+    Route::prefix('kitchen')->name('kitchen.')->group(function () {
+        Route::get('/', [KitchenController::class, 'index'])->name('index');
+        Route::patch('/items/{item}/status', [KitchenController::class, 'updateItemStatus'])->name('items.status');
+        Route::post('/orders/{order}/ready', [KitchenController::class, 'markOrderReady'])->name('orders.ready');
+        Route::get('/refresh', [KitchenController::class, 'refresh'])->name('refresh');
+        Route::get('/notifications', [KitchenController::class, 'getNotifications'])->name('notifications');
+        Route::patch('/notifications/{notification}/read', [KitchenController::class, 'markNotificationRead'])->name('notifications.read');
+        Route::post('/notifications/read-all', [KitchenController::class, 'markAllNotificationsRead'])->name('notifications.read-all');
+    });
 });

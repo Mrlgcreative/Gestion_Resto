@@ -15,6 +15,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -85,7 +86,7 @@ class ReportController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $viewOwnOnly = $request->get('view_own_only', false);
         
         $startDate = $request->filled('start_date') 
@@ -380,3 +381,4 @@ class ReportController extends Controller implements HasMiddleware
         ];
     }
 }
+

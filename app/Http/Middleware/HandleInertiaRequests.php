@@ -119,6 +119,9 @@ class HandleInertiaRequests extends Middleware
             // Rapports
             'canViewReports' => $user->hasPermission('reports.view_all') || $user->hasPermission('reports.view_own'),
             'canViewAllReports' => $user->hasPermission('reports.view_all'),
+            
+            // Cuisine
+            'canViewKitchen' => $user->hasPermission('kitchen.view'),
         ];
     }
 }

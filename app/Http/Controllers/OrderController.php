@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\CashierSession;
 use App\Models\ExchangeRate;
+use App\Models\KitchenNotification;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Server;
@@ -131,6 +132,7 @@ class OrderController extends Controller implements HasMiddleware
 
         $validated = $request->validate([
             'server_id' => ['required', 'exists:servers,id'],
+            'table_number' => ['nullable', 'string', 'max:20'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -151,6 +153,7 @@ class OrderController extends Controller implements HasMiddleware
             'session_id' => $session->id,
             'user_id' => auth()->id(),
             'server_id' => $validated['server_id'],
+            'table_number' => $validated['table_number'] ?? null,
             'status' => 'pending',
             'total_amount' => $validated['total_amount'] ?? 0,
             'currency_id' => $currency?->id,
@@ -161,8 +164,16 @@ class OrderController extends Controller implements HasMiddleware
         // Add items
         foreach ($validated['items'] as $item) {
             $product = Product::find($item['product_id']);
-            $order->addItem($product, $item['quantity'], $item['notes'] ?? null);
+            $orderItem = $order->addItem($product, $item['quantity'], $item['notes'] ?? null);
+            
+            // Ajouter la note cuisine si présente
+            if (!empty($item['notes'])) {
+                $orderItem->update(['kitchen_note' => $item['notes']]);
+            }
         }
+
+        // Notifier la cuisine
+        KitchenNotification::notifyNewOrder($order);
 
         ActivityLog::logCreation('Order', $order->id);
 
@@ -260,6 +271,9 @@ class OrderController extends Controller implements HasMiddleware
         }
 
         $order->cancel();
+
+        // Notifier la cuisine de l'annulation
+        KitchenNotification::notifyOrderCanceled($order);
 
         ActivityLog::logUpdate('Order', $order->id, ['action' => 'canceled']);
 

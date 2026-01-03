@@ -13,6 +13,7 @@ class Order extends Model
         'session_id',
         'user_id',
         'server_id',
+        'table_number',
         'total_amount',
         'currency_id',
         'currency',
