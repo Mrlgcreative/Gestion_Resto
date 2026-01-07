@@ -6,6 +6,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IngredientController;
 use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\KitchenSessionController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReportController;
@@ -118,5 +119,13 @@ Route::middleware('auth')->group(function () {
         Route::get('/notifications', [KitchenController::class, 'getNotifications'])->name('notifications');
         Route::patch('/notifications/{notification}/read', [KitchenController::class, 'markNotificationRead'])->name('notifications.read');
         Route::post('/notifications/read-all', [KitchenController::class, 'markAllNotificationsRead'])->name('notifications.read-all');
+
+        // Kitchen Sessions
+        Route::get('/sessions', [KitchenSessionController::class, 'index'])->name('sessions.index');
+        Route::post('/sessions/open', [KitchenSessionController::class, 'open'])->name('sessions.open');
+        Route::post('/sessions/close', [KitchenSessionController::class, 'close'])->name('sessions.close');
+        Route::get('/sessions/current', [KitchenSessionController::class, 'current'])->name('sessions.current');
+        Route::get('/sessions/{session}', [KitchenSessionController::class, 'show'])->name('sessions.show');
+        Route::get('/sessions/{session}/report', [KitchenSessionController::class, 'report'])->name('sessions.report');
     });
 });

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashierSession;
 use App\Models\ExchangeRate;
 use App\Models\Ingredient;
+use App\Models\KitchenSession;
 use App\Models\Order;
 use App\Models\Product;
 use Carbon\Carbon;
@@ -160,12 +161,79 @@ class DashboardController extends Controller implements HasMiddleware
                 ->get();
         }
         
+        // Stats cuisine pour les cuisiniers
+        $kitchenStats = null;
+        $currentKitchenSession = null;
+        $recentKitchenSessions = collect();
+        
+        if ($user->hasPermission('kitchen.view')) {
+            // Session cuisine active
+            $currentKitchenSession = KitchenSession::getOpenSession($user->id);
+            
+            // Stats du jour pour le cuisinier
+            $todayKitchenSessions = KitchenSession::where('user_id', $user->id)
+                ->whereDate('opened_at', $today)
+                ->get();
+            
+            $totalItemsToday = 0;
+            $totalOrdersToday = 0;
+            $totalMinutesToday = 0;
+            
+            foreach ($todayKitchenSessions as $ks) {
+                $sessionStats = $ks->calculateStats();
+                $totalItemsToday += $sessionStats['total_items_prepared'];
+                $totalOrdersToday += $sessionStats['total_orders_completed'];
+                if ($ks->closed_at) {
+                    $totalMinutesToday += $ks->opened_at->diffInMinutes($ks->closed_at);
+                } elseif ($ks->id === $currentKitchenSession?->id) {
+                    $totalMinutesToday += $ks->opened_at->diffInMinutes(now());
+                }
+            }
+            
+            $kitchenStats = [
+                'totalItemsToday' => $totalItemsToday,
+                'totalOrdersToday' => $totalOrdersToday,
+                'totalMinutesToday' => $totalMinutesToday,
+                'sessionsToday' => $todayKitchenSessions->count(),
+                'currentSession' => $currentKitchenSession ? [
+                    'id' => $currentKitchenSession->id,
+                    'opened_at' => $currentKitchenSession->opened_at->toIso8601String(),
+                    'duration_minutes' => $currentKitchenSession->opened_at->diffInMinutes(now()),
+                    'stats' => $currentKitchenSession->calculateStats(),
+                ] : null,
+            ];
+            
+            // Sessions récentes
+            $recentKitchenSessions = KitchenSession::where('user_id', $user->id)
+                ->orderBy('opened_at', 'desc')
+                ->take(5)
+                ->get()
+                ->map(function ($session) {
+                    return [
+                        'id' => $session->id,
+                        'opened_at' => $session->opened_at->toIso8601String(),
+                        'closed_at' => $session->closed_at?->toIso8601String(),
+                        'duration_minutes' => $session->closed_at 
+                            ? $session->opened_at->diffInMinutes($session->closed_at)
+                            : $session->opened_at->diffInMinutes(now()),
+                        'is_open' => $session->closed_at === null,
+                        'stats' => $session->calculateStats(),
+                    ];
+                });
+        }
+        
         return Inertia::render('Dashboard', [
             'stats' => $stats,
             'recentOrders' => $recentOrders,
             'topProducts' => $topProducts,
             'currentSession' => $currentSession,
             'exchangeRates' => ExchangeRate::with('currency')->get(),
+            'kitchenStats' => $kitchenStats,
+            'currentKitchenSession' => $currentKitchenSession ? [
+                'id' => $currentKitchenSession->id,
+                'opened_at' => $currentKitchenSession->opened_at->toIso8601String(),
+            ] : null,
+            'recentKitchenSessions' => $recentKitchenSessions,
         ]);
     }
 }

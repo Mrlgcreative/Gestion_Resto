@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { Head, router } from "@inertiajs/vue3";
+import axios from "axios";
 import MainLayout from "@/Layouts/MainLayout.vue";
 
 // Composants
@@ -9,6 +10,7 @@ import KitchenCard from "./Components/KitchenCard.vue";
 import KitchenStats from "./Components/KitchenStats.vue";
 import OrderCard from "./Components/OrderCard.vue";
 import NotificationDropdown from "./Components/NotificationDropdown.vue";
+import KitchenSessionControl from "@/Components/KitchenSessionControl.vue";
 
 const props = defineProps({
     orders: { type: Array, default: () => [] },
@@ -20,6 +22,7 @@ const props = defineProps({
 
 // ==================== État ====================
 
+const hasActiveSession = ref(false); // Session active du cuisinier
 const viewMode = ref("kanban"); // 'kanban' ou 'orders'
 const localWaiting = ref([...props.waitingItems]);
 const localPreparing = ref([...props.preparingItems]);
@@ -29,6 +32,14 @@ const localNotifications = ref([...props.notifications]);
 const audioEnabled = ref(true);
 const isRefreshing = ref(false);
 const lastRefresh = ref(new Date());
+
+// Obtenir l'URL de base
+const getBaseUrl = () => {
+    const path = window.location.pathname;
+    const match = path.match(/^(.*?)\/kitchen/);
+    return match ? match[1] : "";
+};
+const baseUrl = getBaseUrl();
 
 // ==================== Computed ====================
 
@@ -48,13 +59,31 @@ const stats = computed(() => ({
 let notificationSound = null;
 let pollingInterval = null;
 
-onMounted(() => {
-    // Initialiser le son
-    notificationSound = new Audio("/sounds/notification.mp3");
-    notificationSound.volume = 0.5;
+// Gérer le changement de session
+const onSessionChanged = (hasSession) => {
+    hasActiveSession.value = hasSession;
+    if (hasSession) {
+        // Session ouverte : démarrer le polling
+        startPolling();
+        refreshData(); // Charger les données immédiatement
+    } else {
+        // Session fermée : arrêter le polling
+        stopPolling();
+    }
+};
 
-    // Démarrer le polling
-    startPolling();
+onMounted(() => {
+    // Initialiser le son (ignorer l'erreur si le fichier n'existe pas)
+    try {
+        notificationSound = new Audio("/sounds/notification.mp3");
+        notificationSound.volume = 0.5;
+        // Précharger le son
+        notificationSound.load();
+    } catch (e) {
+        console.warn("Son de notification non disponible");
+    }
+
+    // Le polling sera démarré quand la session sera détectée comme active
 });
 
 onUnmounted(() => {
@@ -72,13 +101,17 @@ const stopPolling = () => {
     }
 };
 
+// Flag pour bloquer le polling pendant une mise à jour
+const isUpdating = ref(false);
+
 const refreshData = async () => {
-    if (isRefreshing.value) return;
+    // Ne pas rafraîchir si une mise à jour est en cours
+    if (isRefreshing.value || isUpdating.value) return;
 
     isRefreshing.value = true;
     try {
-        const response = await fetch("/kitchen/refresh");
-        const data = await response.json();
+        const response = await axios.get(`${baseUrl}/kitchen/refresh`);
+        const data = response.data;
 
         // Vérifier nouvelles notifications
         const newNotifications = data.notifications.filter(
@@ -138,25 +171,27 @@ const playNotificationSound = () => {
 // ==================== Actions ====================
 
 const updateStatus = async ({ itemId, status }) => {
+    // Bloquer le polling pendant la mise à jour
+    isUpdating.value = true;
+
     // Mise à jour optimiste locale
     moveItem(itemId, status);
 
-    // Envoyer au serveur
+    // Envoyer au serveur avec axios (gère automatiquement le CSRF)
     try {
-        await fetch(`/kitchen/items/${itemId}/status`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN":
-                    document.querySelector('meta[name="csrf-token"]')
-                        ?.content || "",
-            },
-            body: JSON.stringify({ status }),
+        await axios.patch(`${baseUrl}/kitchen/items/${itemId}/status`, {
+            status,
         });
+        // Succès : le polling reprendra normalement
     } catch (error) {
         console.error("Erreur mise à jour:", error);
-        // Rafraîchir pour restaurer l'état correct
-        refreshData();
+        // En cas d'erreur, restaurer l'état depuis le serveur
+        await refreshData();
+    } finally {
+        // Réactiver le polling après un petit délai
+        setTimeout(() => {
+            isUpdating.value = false;
+        }, 500);
     }
 };
 
@@ -188,19 +223,16 @@ const moveItem = (itemId, newStatus) => {
 };
 
 const markOrderReady = async (orderId) => {
+    isUpdating.value = true;
     try {
-        await fetch(`/kitchen/orders/${orderId}/ready`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRF-TOKEN":
-                    document.querySelector('meta[name="csrf-token"]')
-                        ?.content || "",
-            },
-        });
-        refreshData();
+        await axios.post(`${baseUrl}/kitchen/orders/${orderId}/ready`);
+        await refreshData();
     } catch (error) {
         console.error("Erreur:", error);
+    } finally {
+        setTimeout(() => {
+            isUpdating.value = false;
+        }, 500);
     }
 };
 
@@ -210,27 +242,23 @@ const markNotificationRead = async (notificationId) => {
     );
     if (notification) notification.is_read = true;
 
-    await fetch(`/kitchen/notifications/${notificationId}/read`, {
-        method: "PATCH",
-        headers: {
-            "X-CSRF-TOKEN":
-                document.querySelector('meta[name="csrf-token"]')?.content ||
-                "",
-        },
-    });
+    try {
+        await axios.patch(
+            `${baseUrl}/kitchen/notifications/${notificationId}/read`
+        );
+    } catch (error) {
+        console.error("Erreur notification:", error);
+    }
 };
 
 const markAllNotificationsRead = async () => {
     localNotifications.value.forEach((n) => (n.is_read = true));
 
-    await fetch("/kitchen/notifications/read-all", {
-        method: "POST",
-        headers: {
-            "X-CSRF-TOKEN":
-                document.querySelector('meta[name="csrf-token"]')?.content ||
-                "",
-        },
-    });
+    try {
+        await axios.post(`${baseUrl}/kitchen/notifications/read-all`);
+    } catch (error) {
+        console.error("Erreur notifications:", error);
+    }
 };
 
 // ==================== Helpers ====================
@@ -263,7 +291,7 @@ const formatLastRefresh = computed(() => {
         page-description="Gestion des commandes en cuisine"
     >
         <template #header-actions>
-            <div class="flex items-center gap-3">
+            <div v-if="hasActiveSession" class="flex items-center gap-3">
                 <!-- Indicateur de rafraîchissement -->
                 <div class="flex items-center gap-2 text-sm text-gray-500">
                     <div
@@ -384,77 +412,85 @@ const formatLastRefresh = computed(() => {
 
         <div class="py-6">
             <div class="mx-auto max-w-full px-4 sm:px-6 lg:px-8">
-                <!-- Statistiques -->
-                <KitchenStats
-                    :waiting="stats.waiting"
-                    :preparing="stats.preparing"
-                    :ready="stats.ready"
-                    :avg-time="stats.avgTime"
-                />
+                <!-- Contrôle de Session -->
+                <KitchenSessionControl @session-changed="onSessionChanged" />
 
-                <!-- Vue Kanban -->
-                <div
-                    v-if="viewMode === 'kanban'"
-                    class="grid grid-cols-1 md:grid-cols-3 gap-6"
-                >
-                    <!-- Colonne En attente -->
-                    <KitchenColumn
-                        title="En attente"
-                        icon="⏳"
-                        status="waiting"
-                        color="yellow"
-                        :items="localWaiting"
-                        empty-text="Aucun plat en attente"
-                        @update-status="updateStatus"
+                <!-- Contenu visible uniquement si session active -->
+                <template v-if="hasActiveSession">
+                    <!-- Statistiques -->
+                    <KitchenStats
+                        :waiting="stats.waiting"
+                        :preparing="stats.preparing"
+                        :ready="stats.ready"
+                        :avg-time="stats.avgTime"
                     />
 
-                    <!-- Colonne En préparation -->
-                    <KitchenColumn
-                        title="En préparation"
-                        icon="🔥"
-                        status="preparing"
-                        color="orange"
-                        :items="localPreparing"
-                        empty-text="Aucun plat en préparation"
-                        @update-status="updateStatus"
-                    />
-
-                    <!-- Colonne Prêt -->
-                    <KitchenColumn
-                        title="Prêt à servir"
-                        icon="✅"
-                        status="ready"
-                        color="green"
-                        :items="localReady"
-                        empty-text="Aucun plat prêt"
-                        @update-status="updateStatus"
-                    />
-                </div>
-
-                <!-- Vue par commandes -->
-                <div v-else class="space-y-6">
-                    <OrderCard
-                        v-for="order in localOrders"
-                        :key="order.id"
-                        :order="order"
-                        @update-status="updateStatus"
-                        @mark-ready="markOrderReady"
-                    />
-
+                    <!-- Vue Kanban -->
                     <div
-                        v-if="localOrders.length === 0"
-                        class="text-center py-16 bg-white rounded-xl shadow"
+                        v-if="viewMode === 'kanban'"
+                        class="grid grid-cols-1 md:grid-cols-3 gap-6"
                     >
-                        <div class="text-6xl mb-4">🍳</div>
-                        <h3 class="text-xl font-semibold text-gray-700 mb-2">
-                            Aucune commande en cours
-                        </h3>
-                        <p class="text-gray-500">
-                            Les nouvelles commandes apparaîtront ici
-                            automatiquement
-                        </p>
+                        <!-- Colonne En attente -->
+                        <KitchenColumn
+                            title="En attente"
+                            icon="⏳"
+                            status="waiting"
+                            color="yellow"
+                            :items="localWaiting"
+                            empty-text="Aucun plat en attente"
+                            @update-status="updateStatus"
+                        />
+
+                        <!-- Colonne En préparation -->
+                        <KitchenColumn
+                            title="En préparation"
+                            icon="🔥"
+                            status="preparing"
+                            color="orange"
+                            :items="localPreparing"
+                            empty-text="Aucun plat en préparation"
+                            @update-status="updateStatus"
+                        />
+
+                        <!-- Colonne Prêt -->
+                        <KitchenColumn
+                            title="Prêt à servir"
+                            icon="✅"
+                            status="ready"
+                            color="green"
+                            :items="localReady"
+                            empty-text="Aucun plat prêt"
+                            @update-status="updateStatus"
+                        />
                     </div>
-                </div>
+
+                    <!-- Vue par commandes -->
+                    <div v-else class="space-y-6">
+                        <OrderCard
+                            v-for="order in localOrders"
+                            :key="order.id"
+                            :order="order"
+                            @update-status="updateStatus"
+                            @mark-ready="markOrderReady"
+                        />
+
+                        <div
+                            v-if="localOrders.length === 0"
+                            class="text-center py-16 bg-white rounded-xl shadow"
+                        >
+                            <div class="text-6xl mb-4">🍳</div>
+                            <h3
+                                class="text-xl font-semibold text-gray-700 mb-2"
+                            >
+                                Aucune commande en cours
+                            </h3>
+                            <p class="text-gray-500">
+                                Les nouvelles commandes apparaîtront ici
+                                automatiquement
+                            </p>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
     </MainLayout>

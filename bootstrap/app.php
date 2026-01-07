@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Auth\AuthenticationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,7 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Configurer les redirections pour auth/guest
-        $middleware->redirectGuestsTo('/login');
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                abort(401, 'Unauthenticated');
+            }
+            return route('login');
+        });
         $middleware->redirectUsersTo('/dashboard');
 
         // Exempter la route beacon-logout de la vérification CSRF
@@ -32,5 +39,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Gérer les exceptions d'authentification pour les requêtes AJAX
+        $exceptions->render(function (AuthenticationException $e, Request $request) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+        });
     })->create();

@@ -22,3 +22,21 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env.docker
+docker/
+Makefile
+
+# Session files
+storage/framework/sessions/*
+!storage/framework/sessions/.gitignore
+
+# Debug files
+check_*.php
+public/check_*.php
+create_*.php
+setup_*.php

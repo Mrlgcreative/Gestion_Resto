@@ -1,471 +1,512 @@
-          <template>
-  <div class="receipt-wrapper">
-    <div ref="receiptRef" class="receipt bg-white text-black font-mono text-xs font-bold" style="width: 200px; font-size: 11px;">
-      <!-- Header -->
-      <div class="text-center border-b border-dashed border-gray-400 pb-3 mb-3">
-        <div v-if="settings?.logo" class="flex justify-center mb-1">
-          <img :src="`${storageUrl}/${settings.logo}`" class="h-8 w-8 rounded" />
-        </div>
-        <p class="font-bold text-sm uppercase">{{ settings?.restaurant_name || 'Restaurant' }}</p>
-        <p v-if="settings?.description" class="text-[10px] text-gray-600 mt-1">{{ settings.description }}</p>
-        <p v-if="fullLocation" class="text-[10px] text-gray-600">{{ fullLocation }}</p>
-        <p v-if="settings?.phone" class="text-[10px] text-gray-600">Tél: {{ settings.phone }}</p>
-        <div v-if="settings?.rccm || settings?.id_nat" class="mt-1 text-[9px] text-gray-500">
-          <p v-if="settings?.rccm">RCCM: {{ settings.rccm }}</p>
-          <p v-if="settings?.id_nat">ID.NAT: {{ settings.id_nat }}</p>
-           <p v-if="settings?.address" class="text-[10px] text-gray-600 mt-1">{{ settings.address }}</p>
-        </div>
-      </div>
-
-      <!-- Order Info -->
-      <div class="border-b border-dashed border-gray-400 pb-2 mb-2">
-        <div class="flex justify-between">
-          <span>Facture N°:</span>
-          <span class="font-bold">#{{ String(order.id).padStart(6, '0') }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span>Date:</span>
-          <span>{{ formatDate(order.created_at) }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span>Heure:</span>
-          <span>{{ formatTime(order.created_at) }}</span>
-        </div>
-        <div class="flex justify-between">
-          <span>Caissier:</span>
-          <span>{{ order.session?.user?.name || order.user?.name || '-' }}</span>
-        </div>
-      </div>
-
-      <!-- Items -->
-      <div class="border-b border-dashed border-gray-400 pb-2 mb-2">
-        <div class="flex justify-between font-bold mb-1 text-[10px]">
-          <span class="w-6 text-center">QTE</span>
-          <span class="flex-1 text-center">DESIGNATION</span>
-          <span class="w-16 text-right">PRIX UNIT.</span>
-        </div>
-        <div class="border-b border-gray-300 mb-1"></div>
-        
-        <div v-for="item in order.items" :key="item.id" class="mb-1">
-          <div class="flex justify-between text-[10px]">
-            <span class="w-6 text-center">{{ item.quantity }}</span>
-            <span class="flex-1 truncate px-1">{{ item.product?.name }}</span>
-            <span class="w-16 text-right">{{ formatItemPrice(item.unit_price, item.product) }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Totals -->
-      <div class="mb-3">
-        <div class="border-t border-double border-gray-400 mt-2 pt-2">
-          <!-- Total Facture en FC -->
-          <div class="flex justify-between font-bold">
-            <span>Total Facture:</span>
-            <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
-          </div>
-          
-          <!-- Net à payer -->
-          <div class="flex justify-between font-bold text-sm mt-1">
-            <span>NET A PAYER:</span>
-            <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
-          </div>
-          
-          <!-- Total en $ -->
-          <div class="flex justify-between mt-1">
-            <span>Total en $:</span>
-            <span class="font-bold">{{ formatPriceUSD(calculatedSubtotal) }}</span>
-          </div>
-          
-          <!-- Taux de change -->
-          <div class="mt-2 pt-2 border-t border-dashed border-gray-300">
-            <div class="flex justify-between text-[10px]">
-              <span>Taux du jour:</span>
-              <span class="font-bold">1 $ = {{ currentExchangeRate }} FC</span>
+<template>
+    <div class="receipt-wrapper">
+        <div
+            ref="receiptRef"
+            class="receipt bg-white text-black font-sans"
+            style="width: 165px; font-size: 9px"
+        >
+            <!-- Header -->
+            <div class="text-center pb-2 mb-2">
+                <div v-if="settings?.logo" class="flex justify-center mb-1">
+                    <img
+                        :src="`${storageUrl}/${settings.logo}`"
+                        class="h-6 w-6 rounded"
+                    />
+                </div>
+                <p class="font-bold text-[10px] uppercase">
+                    {{ settings?.restaurant_name || "Restaurant" }}
+                </p>
+                <p v-if="settings?.address" class="text-[8px] text-gray-600">
+                    {{ settings.address }}
+                </p>
+                <p v-if="fullLocation" class="text-[7px] text-gray-500">
+                    {{ fullLocation }}
+                </p>
+                <p v-if="settings?.phone" class="text-[8px] text-gray-600">
+                    {{ settings.phone }}
+                </p>
+                <p v-if="settings?.rccm" class="text-[7px] text-gray-500">
+                    RCCM: {{ settings.rccm }}
+                </p>
             </div>
-          </div>
+
+            <!-- Order Info -->
+            <div class="bg-gray-50 rounded px-1 py-1 mb-2 text-[8px]">
+                <div class="flex justify-between">
+                    <span>Fact:</span>
+                    <span class="font-bold"
+                        >#{{ String(order.id).padStart(5, "0") }}</span
+                    >
+                </div>
+                <div class="flex justify-between">
+                    <span>{{ formatDate(order.created_at) }}</span>
+                    <span>{{ formatTime(order.created_at) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Caiss:</span>
+                    <span>{{
+                        (
+                            order.session?.user?.name ||
+                            order.user?.name ||
+                            "-"
+                        ).substring(0, 10)
+                    }}</span>
+                </div>
+            </div>
+
+            <!-- Items Header -->
+            <div class="bg-gray-800 text-white rounded-sm px-1 py-0.5 mb-1">
+                <div class="flex text-[7px] font-semibold">
+                    <span class="w-[20px] text-center">QTE</span>
+                    <span class="flex-1 text-center">DESIGNATION</span>
+                    <span class="w-[35px] text-right">P.UNIT</span>
+                </div>
+            </div>
+
+            <!-- Items -->
+            <div class="pb-2 mb-2">
+                <div
+                    v-for="item in order.items"
+                    :key="item.id"
+                    class="mb-0.5 text-[8px]"
+                >
+                    <div class="flex">
+                        <span class="w-[20px] text-center">{{
+                            item.quantity
+                        }}</span>
+                        <span class="flex-1 truncate px-0.5">{{
+                            item.product?.name?.substring(0, 12)
+                        }}</span>
+                        <span class="w-[35px] text-right font-bold">{{
+                            formatItemPrice(item.unit_price, item.product)
+                        }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Totals -->
+            <div class="mb-2 text-[9px]">
+                <div class="flex justify-between font-bold">
+                    <span>TOTAL FC:</span>
+                    <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Total $:</span>
+                    <span>{{ formatPriceUSD(calculatedSubtotal) }}</span>
+                </div>
+                <div class="text-[7px] text-gray-500 text-center mt-1">
+                    1$ = {{ currentExchangeRate }} FC
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center pt-2 mt-2">
+                <p class="font-semibold text-[9px]">Merci de votre visite !</p>
+                <p class="text-[7px] text-gray-400">
+                    {{ formatDateTime(new Date()) }}
+                </p>
+            </div>
         </div>
 
-        <!-- Payment -->
-        <div v-if="order.payment || order.payments?.length" class="mt-2 pt-2 border-t border-dashed border-gray-400">
-          <div class="flex justify-between">
-            <span>Mode paiement:</span>
-            <span>{{ paymentMethod }}</span>
-          </div>
-          <div v-if="order.payment?.amount_received" class="flex justify-between">
-            <span>Reçu:</span>
-            <span>{{ formatPrice(order.payment.amount_received) }}</span>
-          </div>
-          <div v-if="order.payment?.change" class="flex justify-between">
-            <span>Rendu:</span>
-            <span>{{ formatPrice(order.payment.change) }}</span>
-          </div>
+        <!-- Actions (hidden in print) -->
+        <div class="mt-4 flex justify-center gap-3 print:hidden">
+            <button
+                @click="printReceipt"
+                class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+            >
+                <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                    />
+                </svg>
+                Imprimer
+            </button>
         </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="text-center border-t border-dashed border-gray-400 pt-3">
-        <p class="font-bold">Bon appetit !</p>
-        <p v-if="settings?.email" class="text-[10px] text-gray-500 mt-1">{{ settings.email }}</p>
-        <div class="mt-2">
-          <p class="text-[10px] text-gray-400">{{ formatDateTime(new Date()) }}</p>
-        </div>
-        
-        <!-- Barcode simulation -->
-        <div class="mt-3 flex justify-center">
-          <div class="flex gap-px">
-            <div v-for="(width, i) in barcodeWidths" :key="i" 
-              class="bg-black" 
-              :style="{ width: width + 'px', height: '20px' }"
-            ></div>
-          </div>
-        </div>
-        <p class="text-[8px] text-gray-400 mt-1">{{ String(order.id).padStart(12, '0') }}</p>
-      </div>
     </div>
-
-    <!-- Actions (hidden in print) -->
-    <div class="mt-4 flex justify-center gap-3 print:hidden">
-      <button
-        @click="printReceipt"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
-      >
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-        </svg>
-        Imprimer
-      </button>
-    </div>
-  </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 
 // URL de base pour les images storage
-const storageUrl = window.__STORAGE_URL__ || '/storage';
+const storageUrl = window.__STORAGE_URL__ || "/storage";
 
 const props = defineProps({
-  order: {
-    type: Object,
-    required: true,
-  },
-  settings: {
-    type: Object,
-    default: null,
-  },
-  exchangeRates: {
-    type: Array,
-    default: () => [],
-  },
-  defaultCurrency: {
-    type: String,
-    default: 'USD',
-  },
+    order: {
+        type: Object,
+        required: true,
+    },
+    settings: {
+        type: Object,
+        default: null,
+    },
+    exchangeRates: {
+        type: Array,
+        default: () => [],
+    },
+    defaultCurrency: {
+        type: String,
+        default: "USD",
+    },
 });
 
 const receiptRef = ref(null);
 
 // Générer un code-barres fixe basé sur l'ID de la commande
 const barcodeWidths = computed(() => {
-  const seed = props.order.id || 1;
-  const widths = [];
-  for (let i = 0; i < 30; i++) {
-    // Utiliser l'ID pour générer un pattern cohérent
-    widths.push(((seed * (i + 1) * 7) % 2) + 1);
-  }
-  return widths;
+    const seed = props.order.id || 1;
+    const widths = [];
+    for (let i = 0; i < 30; i++) {
+        // Utiliser l'ID pour générer un pattern cohérent
+        widths.push(((seed * (i + 1) * 7) % 2) + 1);
+    }
+    return widths;
 });
 
 // Location complète (ville, province, pays)
 const fullLocation = computed(() => {
-  const parts = [
-    props.settings?.city,
-    props.settings?.province,
-    props.settings?.country,
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(', ') : '';
+    const parts = [
+        props.settings?.city,
+        props.settings?.province,
+        props.settings?.country,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : "";
 });
 
 // Devise de la commande
-const orderCurrency = computed(() => props.order.currency || props.defaultCurrency);
+const orderCurrency = computed(
+    () => props.order.currency || props.defaultCurrency
+);
 
 // Obtenir la devise d'un produit
 const getProductCurrency = (product) => {
-  return product?.currency?.code || 'USD';
+    return product?.currency?.code || "USD";
 };
 
 // Obtenir le taux de change pour une devise (par rapport à USD)
 const getExchangeRate = (currencyCode) => {
-  if (currencyCode === 'USD') return 1;
-  const rate = props.exchangeRates?.find(r => r.currency?.code === currencyCode);
-  return rate ? parseFloat(rate.rate) : 1;
+    if (currencyCode === "USD") return 1;
+    const rate = props.exchangeRates?.find(
+        (r) => r.currency?.code === currencyCode
+    );
+    return rate ? parseFloat(rate.rate) : 1;
 };
 
 // Convertir un montant de la devise du produit vers la devise du panier
 const convertToCartCurrency = (amount, product) => {
-  const fromCurrency = getProductCurrency(product);
-  const toCurrency = orderCurrency.value;
-  
-  if (fromCurrency === toCurrency) return parseFloat(amount);
-  
-  // Conversion via USD comme pivot
-  const fromRate = getExchangeRate(fromCurrency);
-  const toRate = getExchangeRate(toCurrency);
-  const amountInUSD = parseFloat(amount) / fromRate;
-  return amountInUSD * toRate;
+    const fromCurrency = getProductCurrency(product);
+    const toCurrency = orderCurrency.value;
+
+    if (fromCurrency === toCurrency) return parseFloat(amount);
+
+    // Conversion via USD comme pivot
+    const fromRate = getExchangeRate(fromCurrency);
+    const toRate = getExchangeRate(toCurrency);
+    const amountInUSD = parseFloat(amount) / fromRate;
+    return amountInUSD * toRate;
 };
 
 // Calculer le sous-total en convertissant tous les articles dans la devise du panier
 const calculatedSubtotal = computed(() => {
-  if (!props.order.items) return 0;
-  return props.order.items.reduce((sum, item) => {
-    const itemTotal = item.unit_price * item.quantity;
-    return sum + convertToCartCurrency(itemTotal, item.product);
-  }, 0);
+    if (!props.order.items) return 0;
+    return props.order.items.reduce((sum, item) => {
+        const itemTotal = item.unit_price * item.quantity;
+        return sum + convertToCartCurrency(itemTotal, item.product);
+    }, 0);
 });
 
 // Calculs (ancien subtotal gardé pour compatibilité)
 const subtotal = computed(() => {
-  return props.order.items?.reduce((sum, item) => sum + parseFloat(item.total_price), 0) || 0;
+    return (
+        props.order.items?.reduce(
+            (sum, item) => sum + parseFloat(item.total_price),
+            0
+        ) || 0
+    );
 });
 
 const taxAmount = computed(() => {
-  if (!props.settings?.tax_rate) return 0;
-  return calculatedSubtotal.value * (props.settings.tax_rate / 100);
+    if (!props.settings?.tax_rate) return 0;
+    return calculatedSubtotal.value * (props.settings.tax_rate / 100);
 });
 
 const serviceAmount = computed(() => {
-  if (!props.settings?.service_charge) return 0;
-  return calculatedSubtotal.value * (props.settings.service_charge / 100);
+    if (!props.settings?.service_charge) return 0;
+    return calculatedSubtotal.value * (props.settings.service_charge / 100);
 });
 
 // Mode de paiement
 const paymentMethod = computed(() => {
-  const payment = props.order.payment || props.order.payments?.[0];
-  if (!payment) return '-';
-  
-  const methods = {
-    cash: 'Espèces',
-    card: 'Carte',
-    mobile: 'Mobile',
-  };
-  return methods[payment.method] || payment.method;
+    const payment = props.order.payment || props.order.payments?.[0];
+    if (!payment) return "-";
+
+    const methods = {
+        cash: "Espèces",
+        card: "Carte",
+        mobile: "Mobile",
+    };
+    return methods[payment.method] || payment.method;
 });
 
 // Formater le prix d'un article dans la devise de son produit
 const formatItemPrice = (price, product) => {
-  const currency = getProductCurrency(product);
-  try {
-    if (currency === 'CDF') {
-      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(price) || 0)) + ' FC';
+    const currency = getProductCurrency(product);
+    try {
+        if (currency === "CDF") {
+            return (
+                new Intl.NumberFormat("fr-FR").format(
+                    Math.round(parseFloat(price) || 0)
+                ) + " FC"
+            );
+        }
+        return new Intl.NumberFormat("fr-FR", {
+            style: "currency",
+            currency: currency,
+        }).format(parseFloat(price) || 0);
+    } catch (e) {
+        return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
     }
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: currency,
-    }).format(parseFloat(price) || 0);
-  } catch (e) {
-    return `${parseFloat(price || 0).toFixed(2)} ${currency}`;
-  }
 };
 
 // Formatters - prix dans la devise de la commande
 const formatPrice = (amount) => {
-  const currency = orderCurrency.value;
-  try {
-    if (currency === 'CDF') {
-      return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(amount) || 0)) + ' FC';
+    const currency = orderCurrency.value;
+    try {
+        if (currency === "CDF") {
+            return (
+                new Intl.NumberFormat("fr-FR").format(
+                    Math.round(parseFloat(amount) || 0)
+                ) + " FC"
+            );
+        }
+        return new Intl.NumberFormat("fr-FR", {
+            style: "currency",
+            currency: currency,
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+        }).format(amount);
+    } catch (e) {
+        return `${parseFloat(amount || 0).toFixed(2)} ${currency}`;
     }
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch (e) {
-    return `${parseFloat(amount || 0).toFixed(2)} ${currency}`;
-  }
 };
 
 const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+    return new Date(date).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    });
 };
 
 const formatTime = (date) => {
-  return new Date(date).toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+    return new Date(date).toLocaleTimeString("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 };
 
 const formatDateTime = (date) => {
-  return new Date(date).toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+    return new Date(date).toLocaleString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
 };
 
 // Convertir un montant d'une devise vers une autre (USD comme pivot)
 const convertCurrency = (amount, fromCurrency, toCurrency) => {
-  if (fromCurrency === toCurrency) return parseFloat(amount);
-  const fromRate = getExchangeRate(fromCurrency);
-  const toRate = getExchangeRate(toCurrency);
-  const amountInUSD = parseFloat(amount) / fromRate;
-  return amountInUSD * toRate;
+    if (fromCurrency === toCurrency) return parseFloat(amount);
+    const fromRate = getExchangeRate(fromCurrency);
+    const toRate = getExchangeRate(toCurrency);
+    const amountInUSD = parseFloat(amount) / fromRate;
+    return amountInUSD * toRate;
 };
 
 // Format equivalent in other currency
 const formatEquivalent = (amount, rate) => {
-  const currencyCode = rate.currency?.code || rate.code;
-  // Convertir depuis la devise de la commande vers la devise cible
-  const convertedAmount = convertCurrency(amount, props.defaultCurrency, currencyCode);
-  
-  // Pour CDF, pas de décimales
-  if (currencyCode === 'CDF') {
-    return new Intl.NumberFormat('fr-FR').format(Math.round(convertedAmount)) + ' FC';
-  }
-  
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currencyCode,
-  }).format(convertedAmount);
+    const currencyCode = rate.currency?.code || rate.code;
+    // Convertir depuis la devise de la commande vers la devise cible
+    const convertedAmount = convertCurrency(
+        amount,
+        props.defaultCurrency,
+        currencyCode
+    );
+
+    // Pour CDF, pas de décimales
+    if (currencyCode === "CDF") {
+        return (
+            new Intl.NumberFormat("fr-FR").format(Math.round(convertedAmount)) +
+            " FC"
+        );
+    }
+
+    return new Intl.NumberFormat("fr-FR", {
+        style: "currency",
+        currency: currencyCode,
+    }).format(convertedAmount);
 };
 
 // Équivalent à afficher (si CDF -> montrer USD, si USD -> montrer CDF)
 const equivalentDisplay = computed(() => {
-  const currencyCode = orderCurrency.value;
-  let targetCode;
-  
-  if (currencyCode === 'CDF') {
-    // Commande en CDF -> afficher équivalent USD
-    targetCode = 'USD';
-  } else {
-    // Commande en USD (ou autre) -> afficher équivalent CDF
-    targetCode = 'CDF';
-  }
-  
-  // Utiliser le sous-total calculé (avec conversions)
-  const amount = convertCurrency(calculatedSubtotal.value, currencyCode, targetCode);
-  
-  let formatted;
-  if (targetCode === 'CDF') {
-    formatted = new Intl.NumberFormat('fr-FR').format(Math.round(amount)) + ' FC';
-  } else {
-    try {
-      formatted = new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: targetCode,
-      }).format(amount);
-    } catch (e) {
-      formatted = amount.toFixed(2) + ' ' + targetCode;
+    const currencyCode = orderCurrency.value;
+    let targetCode;
+
+    if (currencyCode === "CDF") {
+        // Commande en CDF -> afficher équivalent USD
+        targetCode = "USD";
+    } else {
+        // Commande en USD (ou autre) -> afficher équivalent CDF
+        targetCode = "CDF";
     }
-  }
-  
-  return { code: targetCode, amount, formatted };
+
+    // Utiliser le sous-total calculé (avec conversions)
+    const amount = convertCurrency(
+        calculatedSubtotal.value,
+        currencyCode,
+        targetCode
+    );
+
+    let formatted;
+    if (targetCode === "CDF") {
+        formatted =
+            new Intl.NumberFormat("fr-FR").format(Math.round(amount)) + " FC";
+    } else {
+        try {
+            formatted = new Intl.NumberFormat("fr-FR", {
+                style: "currency",
+                currency: targetCode,
+            }).format(amount);
+        } catch (e) {
+            formatted = amount.toFixed(2) + " " + targetCode;
+        }
+    }
+
+    return { code: targetCode, amount, formatted };
 });
 
 // Format rate display (ex: "2800 CDF")
 const formatRate = (rate) => {
-  const currencyCode = rate.currency?.code || rate.code;
-  const rateValue = parseFloat(rate.rate);
-  
-  if (currencyCode === 'CDF') {
-    return new Intl.NumberFormat('fr-FR').format(Math.round(rateValue)) + ' FC';
-  }
-  
-  return new Intl.NumberFormat('fr-FR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(rateValue) + ' ' + currencyCode;
+    const currencyCode = rate.currency?.code || rate.code;
+    const rateValue = parseFloat(rate.rate);
+
+    if (currencyCode === "CDF") {
+        return (
+            new Intl.NumberFormat("fr-FR").format(Math.round(rateValue)) + " FC"
+        );
+    }
+
+    return (
+        new Intl.NumberFormat("fr-FR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+        }).format(rateValue) +
+        " " +
+        currencyCode
+    );
 };
 
 // Taux de change actuel CDF
 const currentExchangeRate = computed(() => {
-  const cdfRate = props.exchangeRates?.find(r => r.currency?.code === 'CDF');
-  if (cdfRate) {
-    return new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(cdfRate.rate)));
-  }
-  return '2800'; // Valeur par défaut
+    const cdfRate = props.exchangeRates?.find(
+        (r) => r.currency?.code === "CDF"
+    );
+    if (cdfRate) {
+        return new Intl.NumberFormat("fr-FR").format(
+            Math.round(parseFloat(cdfRate.rate))
+        );
+    }
+    return "2800"; // Valeur par défaut
 });
 
 // Formater le prix en CDF (Francs Congolais)
 const formatPriceCDF = (amount) => {
-  const currencyCode = orderCurrency.value;
-  let amountInCDF;
-  
-  if (currencyCode === 'CDF') {
-    amountInCDF = parseFloat(amount);
-  } else {
-    // Convertir vers CDF
-    amountInCDF = convertCurrency(amount, currencyCode, 'CDF');
-  }
-  
-  return new Intl.NumberFormat('fr-FR').format(Math.round(amountInCDF)) + ' FC';
+    const currencyCode = orderCurrency.value;
+    let amountInCDF;
+
+    if (currencyCode === "CDF") {
+        amountInCDF = parseFloat(amount);
+    } else {
+        // Convertir vers CDF
+        amountInCDF = convertCurrency(amount, currencyCode, "CDF");
+    }
+
+    return (
+        new Intl.NumberFormat("fr-FR").format(Math.round(amountInCDF)) + " FC"
+    );
 };
 
 // Formater le prix en USD
 const formatPriceUSD = (amount) => {
-  const currencyCode = orderCurrency.value;
-  let amountInUSD;
-  
-  if (currencyCode === 'USD') {
-    amountInUSD = parseFloat(amount);
-  } else {
-    // Convertir vers USD
-    amountInUSD = convertCurrency(amount, currencyCode, 'USD');
-  }
-  
-  try {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amountInUSD);
-  } catch (e) {
-    return amountInUSD.toFixed(2) + ' $';
-  }
+    const currencyCode = orderCurrency.value;
+    let amountInUSD;
+
+    if (currencyCode === "USD") {
+        amountInUSD = parseFloat(amount);
+    } else {
+        // Convertir vers USD
+        amountInUSD = convertCurrency(amount, currencyCode, "USD");
+    }
+
+    try {
+        return new Intl.NumberFormat("fr-FR", {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(amountInUSD);
+    } catch (e) {
+        return amountInUSD.toFixed(2) + " $";
+    }
 };
 
 // Générer le HTML d'une facture avec un label (Client ou Maison)
 const generateReceiptHTML = (label) => {
-  const receiptContent = receiptRef.value.innerHTML;
-  // Insérer le label après le header
-  const labelHTML = `
-    <div style="text-align: center; border: 2px solid #000; padding: 4px; margin: 8px 0; background: ${label === 'MAISON' ? '#f0f0f0' : '#fff'};">
+    const receiptContent = receiptRef.value.innerHTML;
+    // Insérer le label après le header
+    const labelHTML = `
+    <div style="text-align: center; border: 2px solid #000; padding: 4px; margin: 8px 0; background: ${
+        label === "MAISON" ? "#f0f0f0" : "#fff"
+    };">
       <span style="font-weight: bold; font-size: 12px; letter-spacing: 2px;">*** ${label} ***</span>
     </div>
   `;
-  
-  // Insérer le label juste après le premier border-b (après le header)
-  const headerEndIndex = receiptContent.indexOf('<!-- Order Info -->');
-  if (headerEndIndex !== -1) {
-    return receiptContent.slice(0, headerEndIndex) + labelHTML + receiptContent.slice(headerEndIndex);
-  }
-  
-  // Fallback: ajouter au début
-  return labelHTML + receiptContent;
+
+    // Insérer le label juste après le premier border-b (après le header)
+    const headerEndIndex = receiptContent.indexOf("<!-- Order Info -->");
+    if (headerEndIndex !== -1) {
+        return (
+            receiptContent.slice(0, headerEndIndex) +
+            labelHTML +
+            receiptContent.slice(headerEndIndex)
+        );
+    }
+
+    // Fallback: ajouter au début
+    return labelHTML + receiptContent;
 };
 
 // CSS commun pour l'impression
 const getPrintStyles = () => `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
-    font-family: 'Courier New', Consolas, monospace; 
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif; 
     font-size: 10px; 
-    line-height: 1.3;
+    line-height: 1.4;
     width: 48mm; 
     padding: 1mm;
     background: white;
     color: #000;
-    font-weight: bold;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -475,7 +516,7 @@ const getPrintStyles = () => `
     width: 100%;
     background: white;
     color: black;
-    font-family: 'Courier New', Consolas, monospace;
+    font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
     font-size: 12px;
     page-break-after: always;
   }
@@ -486,7 +527,6 @@ const getPrintStyles = () => `
   
   /* Séparateur entre les deux factures */
   .receipt-separator {
-    border-top: 2px dashed #000;
     margin: 10px 0;
     padding-top: 10px;
     page-break-before: always;
@@ -496,17 +536,18 @@ const getPrintStyles = () => `
   .text-center { text-align: center; }
   .text-right { text-align: right; }
   .font-bold { font-weight: bold; }
-  .font-semibold { font-weight: 700; }
+  .font-semibold { font-weight: 600; }
   .font-medium { font-weight: 500; }
   .uppercase { text-transform: uppercase; }
   
   /* Tailles de texte POS Giga 360 48mm */
   .text-xs { font-size: 10px; }
   .text-sm { font-size: 11px; }
-  .text-\\[8px\\] { font-size: 7px; }
-  .text-\\[9px\\] { font-size: 8px; }
-  .text-\\[10px\\] { font-size: 9px; }
-  .text-\\[11px\\] { font-size: 10px; }
+  .text-\\[7px\\] { font-size: 7px; }
+  .text-\\[8px\\] { font-size: 8px; }
+  .text-\\[9px\\] { font-size: 9px; }
+  .text-\\[10px\\] { font-size: 10px; }
+  .text-\\[11px\\] { font-size: 11px; }
   
   /* Flexbox */
   .flex { display: flex; }
@@ -519,22 +560,17 @@ const getPrintStyles = () => `
   
   /* Couleurs de texte - TOUT EN NOIR pour l'impression */
   .text-black { color: #000 !important; }
-  .text-gray-400 { color: #000 !important; }
-  .text-gray-500 { color: #000 !important; }
-  .text-gray-600 { color: #000 !important; }
+  .text-white { color: #fff !important; }
+  .text-gray-400, .text-gray-500, .text-gray-600 { color: #333 !important; }
   
-  /* Forcer tout le texte en noir */
-  body, p, span, div {
-    color: #000 !important;
-  }
+  /* Backgrounds */
+  .bg-white { background: white; }
+  .bg-gray-50 { background: #f9f9f9; }
+  .bg-gray-800 { background: #1f2937; }
+  .bg-gray-900 { background: #111827; }
   
-  /* Bordures */
-  .border-b { border-bottom-width: 1px; }
-  .border-t { border-top-width: 1px; }
-  .border-dashed { border-style: dashed; }
-  .border-double { border-style: double; border-width: 3px 0 0 0; }
-  .border-gray-300 { border-color: #d1d5db; }
-  .border-gray-400 { border-color: #9ca3af; }
+  /* Pas de bordures pointillées */
+  .border-b, .border-t, .border-dashed { border: none !important; }
   
   /* Espacements */
   .p-4 { padding: 16px; }
@@ -545,6 +581,8 @@ const getPrintStyles = () => `
   .pl-2 { padding-left: 8px; }
   .pr-2 { padding-right: 8px; }
   .px-1 { padding-left: 4px; padding-right: 4px; }
+  .py-1 { padding-top: 4px; padding-bottom: 4px; }
+  .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
   .mb-1 { margin-bottom: 4px; }
   .mb-2 { margin-bottom: 8px; }
   .mb-3 { margin-bottom: 12px; }
@@ -555,15 +593,20 @@ const getPrintStyles = () => `
   /* Largeurs pour le tableau */
   .w-6 { width: 20px; }
   .w-16 { width: 50px; }
+  .w-\\[20px\\] { width: 20px; }
+  .w-\\[35px\\] { width: 35px; }
   
-  /* Dimensions POS Giga */
+  /* Dimensions */
   .h-10 { height: 32px; }
   .w-10 { width: 32px; }
   .h-8 { height: 28px; }
   .w-8 { width: 28px; }
+  .h-6 { height: 20px; }
+  .w-6 { width: 20px; }
   .h-4 { height: 14px; }
   .w-4 { width: 14px; }
   .rounded { border-radius: 4px; }
+  .rounded-sm { border-radius: 2px; }
   .rounded-lg { border-radius: 8px; }
   
   /* Utilitaires */
@@ -573,44 +616,23 @@ const getPrintStyles = () => `
     white-space: nowrap; 
     max-width: 70px; 
   }
-  .bg-white { background: white; }
-  .bg-black { background: black; }
-  .bg-gray-900 { background: #111827; }
-  .text-white { color: white; }
   
-  /* Image / Logo pour POS Giga 58mm */
+  /* Image / Logo */
   img {
-    width: 32px !important;
-    height: 32px !important;
-    max-width: 32px !important;
-    max-height: 32px !important;
+    width: 28px !important;
+    height: 28px !important;
+    max-width: 28px !important;
+    max-height: 28px !important;
     object-fit: cover !important;
-    border-radius: 3px !important;
+    border-radius: 4px !important;
     display: block;
     margin: 0 auto;
-  }
-  
-  img.h-8,
-  img.w-8 {
-    width: 32px !important;
-    height: 32px !important;
-  }
-  
-  img.rounded {
-    border-radius: 4px !important;
   }
   
   /* Cacher les boutons d'action */
   .print\\:hidden,
   button {
     display: none !important;
-  }
-  
-  /* Style pour le code-barres */
-  .barcode-bar {
-    background: black;
-    height: 20px;
-    display: inline-block;
   }
   
   @media print {
@@ -632,16 +654,20 @@ const getPrintStyles = () => `
     .receipt:last-child {
       page-break-after: avoid;
     }
+    /* Pas de bordures à l'impression */
+    .border-b, .border-t, .border-dashed, .border-gray-400 {
+      border: none !important;
+    }
   }
 `;
 
 // Imprimer une seule facture avec un label
 const printSingleReceipt = (label) => {
-  return new Promise((resolve) => {
-    const printWindow = window.open('', '_blank');
-    const receiptContent = generateReceiptHTML(label);
-    
-    printWindow.document.write(`
+    return new Promise((resolve) => {
+        const printWindow = window.open("", "_blank");
+        const receiptContent = generateReceiptHTML(label);
+
+        printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -655,61 +681,61 @@ const printSingleReceipt = (label) => {
       </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    setTimeout(() => {
-      printWindow.print();
-      // Attendre que l'impression soit terminée ou annulée
-      printWindow.onafterprint = () => {
-        printWindow.close();
-        resolve();
-      };
-      // Fallback si onafterprint n'est pas supporté
-      setTimeout(() => {
-        if (!printWindow.closed) {
-          printWindow.close();
-        }
-        resolve();
-      }, 1000);
-    }, 250);
-  });
+        printWindow.document.close();
+        printWindow.focus();
+
+        setTimeout(() => {
+            printWindow.print();
+            // Attendre que l'impression soit terminée ou annulée
+            printWindow.onafterprint = () => {
+                printWindow.close();
+                resolve();
+            };
+            // Fallback si onafterprint n'est pas supporté
+            setTimeout(() => {
+                if (!printWindow.closed) {
+                    printWindow.close();
+                }
+                resolve();
+            }, 1000);
+        }, 250);
+    });
 };
 
 // Print - Imprimer deux factures une par une (Client puis Maison)
 const printReceipt = async () => {
-  // 1. Imprimer la facture CLIENT
-  await printSingleReceipt('CLIENT');
-  
-  // 2. Petite pause puis imprimer la facture MAISON
-  setTimeout(async () => {
-    await printSingleReceipt('MAISON');
-  }, 500);
+    // 1. Imprimer la facture CLIENT
+    await printSingleReceipt("CLIENT");
+
+    // 2. Petite pause puis imprimer la facture MAISON
+    setTimeout(async () => {
+        await printSingleReceipt("MAISON");
+    }, 500);
 };
 </script>
 
 <style scoped>
 .receipt-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .receipt {
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  padding: 16px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    padding: 16px;
 }
 
 @media print {
-  .receipt-wrapper {
-    display: block;
-  }
-  
-  .receipt {
-    box-shadow: none;
-    width: 48mm !important;
-    padding: 0;
-    font-size: 10px;
-  }
+    .receipt-wrapper {
+        display: block;
+    }
+
+    .receipt {
+        box-shadow: none;
+        width: 48mm !important;
+        padding: 0;
+        font-size: 10px;
+    }
 }
 </style>

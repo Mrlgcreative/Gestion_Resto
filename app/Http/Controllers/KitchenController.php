@@ -126,6 +126,15 @@ class KitchenController extends Controller implements HasMiddleware
             }
         }
 
+        // Retourner JSON pour les requêtes AJAX
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Statut mis à jour',
+                'item' => $item->fresh(),
+            ]);
+        }
+
         return back()->with('success', 'Statut mis à jour');
     }
 

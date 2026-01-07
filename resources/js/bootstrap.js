@@ -1,16 +1,18 @@
-import axios from 'axios';
+import axios from "axios";
 window.axios = axios;
 
 // Configuration du base URL pour XAMPP
 const getBasePath = () => {
     try {
-        const baseUrl = window.__BASE_URL__ || '';
+        const baseUrl = window.__BASE_URL__ || "";
         const url = new URL(baseUrl);
-        return url.pathname.replace(/\/$/, '');
+        return url.pathname.replace(/\/$/, "");
     } catch {
-        return '';
+        return "";
     }
 };
 
 window.axios.defaults.baseURL = getBasePath();
-window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+window.axios.defaults.headers.common["X-Requested-With"] = "XMLHttpRequest";
+window.axios.defaults.withCredentials = true;
+window.axios.defaults.withXSRFToken = true;

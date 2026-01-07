@@ -16,11 +16,14 @@ class CheckPermission
     public function handle(Request $request, Closure $next, string $permission): Response
     {
         if (!$request->user()) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json(['error' => 'Non authentifié'], 401);
+            }
             return redirect()->route('login');
         }
 
         if (!$request->user()->hasPermission($permission)) {
-            if ($request->expectsJson()) {
+            if ($request->expectsJson() || $request->ajax()) {
                 return response()->json(['error' => 'Accès non autorisé.'], 403);
             }
             
