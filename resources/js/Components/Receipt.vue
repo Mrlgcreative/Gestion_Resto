@@ -57,9 +57,9 @@
             <!-- Items Header -->
             <div class="bg-gray-800 text-white rounded-sm px-1 py-0.5 mb-1">
                 <div class="flex text-[7px] font-semibold">
-                    <span class="w-[20px] text-center">QTE</span>
-                    <span class="flex-1 text-center">DESIGNATION</span>
-                    <span class="w-[35px] text-right">P.UNIT</span>
+                    <span class="w-[18px] text-left">QTE</span>
+                    <span class="flex-1 text-left pl-1">DESIGNATION</span>
+                    <span class="w-[40px] text-right">P.UNIT</span>
                 </div>
             </div>
 
@@ -71,13 +71,13 @@
                     class="mb-0.5 text-[8px]"
                 >
                     <div class="flex">
-                        <span class="w-[20px] text-center">{{
+                        <span class="w-[18px] text-left">{{
                             item.quantity
                         }}</span>
-                        <span class="flex-1 truncate px-0.5">{{
-                            item.product?.name?.substring(0, 12)
+                        <span class="flex-1 truncate text-left pl-1">{{
+                            item.product?.name?.substring(0, 14)
                         }}</span>
-                        <span class="w-[35px] text-right font-bold">{{
+                        <span class="w-[40px] text-right font-semibold">{{
                             formatItemPrice(item.unit_price, item.product)
                         }}</span>
                     </div>
