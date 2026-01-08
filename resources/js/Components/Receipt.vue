@@ -6,7 +6,10 @@
             style="width: 165px; font-size: 9px"
         >
             <!-- Header -->
-            <div class="text-center pb-2 mb-2">
+            <div
+                class="text-center pb-2 mb-2"
+                style="border-bottom: 1px solid #ccc"
+            >
                 <div v-if="settings?.logo" class="flex justify-center mb-1">
                     <img
                         :src="`${storageUrl}/${settings.logo}`"
@@ -31,7 +34,10 @@
             </div>
 
             <!-- Order Info -->
-            <div class="bg-gray-50 rounded px-1 py-1 mb-2 text-[8px]">
+            <div
+                class="bg-gray-50 rounded px-1 py-1 mb-2 text-[8px]"
+                style="border-bottom: 1px solid #ccc; padding-bottom: 8px"
+            >
                 <div class="flex justify-between">
                     <span>Fact:</span>
                     <span class="font-bold"
@@ -57,35 +63,66 @@
             <!-- Items Header -->
             <div class="bg-gray-800 text-white rounded-sm px-1 py-0.5 mb-1">
                 <div class="flex text-[7px] font-semibold">
-                    <span class="w-[18px] text-left">QTE</span>
-                    <span class="flex-1 text-left pl-1">DESIGNATION</span>
-                    <span class="w-[40px] text-right">P.UNIT</span>
+                    <span style="width: 18px; min-width: 18px; text-align: left"
+                        >QTE</span
+                    >
+                    <span style="flex: 1; text-align: left; padding-left: 4px"
+                        >DESIGNATION</span
+                    >
+                    <span
+                        style="width: 40px; min-width: 40px; text-align: right"
+                        >P.UNIT</span
+                    >
                 </div>
             </div>
 
             <!-- Items -->
-            <div class="pb-2 mb-2">
+            <div class="pb-2 mb-2" style="border-bottom: 1px solid #ccc">
                 <div
                     v-for="item in order.items"
                     :key="item.id"
                     class="mb-0.5 text-[8px]"
                 >
                     <div class="flex">
-                        <span class="w-[18px] text-left">{{
-                            item.quantity
-                        }}</span>
-                        <span class="flex-1 truncate text-left pl-1">{{
-                            item.product?.name?.substring(0, 14)
-                        }}</span>
-                        <span class="w-[40px] text-right font-semibold">{{
-                            formatItemPrice(item.unit_price, item.product)
-                        }}</span>
+                        <span
+                            style="
+                                width: 18px;
+                                min-width: 18px;
+                                text-align: left;
+                            "
+                            >{{ item.quantity }}</span
+                        >
+                        <span
+                            style="
+                                flex: 1;
+                                text-align: left;
+                                padding-left: 4px;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                white-space: nowrap;
+                            "
+                            >{{ item.product?.name?.substring(0, 14) }}</span
+                        >
+                        <span
+                            style="
+                                width: 40px;
+                                min-width: 40px;
+                                text-align: right;
+                                font-weight: 600;
+                            "
+                            >{{
+                                formatItemPrice(item.unit_price, item.product)
+                            }}</span
+                        >
                     </div>
                 </div>
             </div>
 
             <!-- Totals -->
-            <div class="mb-2 text-[9px]">
+            <div
+                class="mb-2 text-[9px]"
+                style="border-bottom: 1px solid #ccc; padding-bottom: 8px"
+            >
                 <div class="flex justify-between font-bold">
                     <span>TOTAL FC:</span>
                     <span>{{ formatPriceCDF(calculatedSubtotal) }}</span>
@@ -501,8 +538,8 @@ const getPrintStyles = () => `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
     font-family: 'Segoe UI', Arial, Helvetica, sans-serif; 
-    font-size: 10px; 
-    line-height: 1.4;
+    font-size: 9px; 
+    line-height: 1.2;
     width: 48mm; 
     padding: 1mm;
     background: white;
@@ -517,7 +554,7 @@ const getPrintStyles = () => `
     background: white;
     color: black;
     font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
-    font-size: 12px;
+    font-size: 9px;
     page-break-after: always;
   }
   
@@ -527,8 +564,8 @@ const getPrintStyles = () => `
   
   /* Séparateur entre les deux factures */
   .receipt-separator {
-    margin: 10px 0;
-    padding-top: 10px;
+    margin: 6px 0;
+    padding-top: 6px;
     page-break-before: always;
   }
   
@@ -540,14 +577,14 @@ const getPrintStyles = () => `
   .font-medium { font-weight: 500; }
   .uppercase { text-transform: uppercase; }
   
-  /* Tailles de texte POS Giga 360 48mm */
-  .text-xs { font-size: 10px; }
-  .text-sm { font-size: 11px; }
+  /* Tailles de texte réduites pour impression */
+  .text-xs { font-size: 8px; }
+  .text-sm { font-size: 9px; }
   .text-\\[7px\\] { font-size: 7px; }
   .text-\\[8px\\] { font-size: 8px; }
   .text-\\[9px\\] { font-size: 9px; }
   .text-\\[10px\\] { font-size: 10px; }
-  .text-\\[11px\\] { font-size: 11px; }
+  .text-\\[11px\\] { font-size: 10px; }
   
   /* Flexbox */
   .flex { display: flex; }
@@ -556,7 +593,7 @@ const getPrintStyles = () => `
   .justify-center { justify-content: center; }
   .items-center { align-items: center; }
   .gap-px { gap: 1px; }
-  .gap-3 { gap: 12px; }
+  .gap-3 { gap: 8px; }
   
   /* Couleurs de texte - TOUT EN NOIR pour l'impression */
   .text-black { color: #000 !important; }
@@ -572,42 +609,46 @@ const getPrintStyles = () => `
   /* Pas de bordures pointillées */
   .border-b, .border-t, .border-dashed { border: none !important; }
   
-  /* Espacements */
-  .p-4 { padding: 16px; }
-  .pb-2 { padding-bottom: 8px; }
-  .pb-3 { padding-bottom: 12px; }
-  .pt-2 { padding-top: 8px; }
-  .pt-3 { padding-top: 12px; }
-  .pl-2 { padding-left: 8px; }
-  .pr-2 { padding-right: 8px; }
-  .px-1 { padding-left: 4px; padding-right: 4px; }
-  .py-1 { padding-top: 4px; padding-bottom: 4px; }
-  .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
-  .mb-1 { margin-bottom: 4px; }
-  .mb-2 { margin-bottom: 8px; }
-  .mb-3 { margin-bottom: 12px; }
-  .mt-1 { margin-top: 4px; }
-  .mt-2 { margin-top: 8px; }
-  .mt-3 { margin-top: 12px; }
+  /* Espacements réduits pour impression */
+  .p-4 { padding: 8px; }
+  .pb-2 { padding-bottom: 4px; }
+  .pb-3 { padding-bottom: 6px; }
+  .pt-2 { padding-top: 4px; }
+  .pt-3 { padding-top: 6px; }
+  .pl-2 { padding-left: 4px; }
+  .pr-2 { padding-right: 4px; }
+  .px-1 { padding-left: 2px; padding-right: 2px; }
+  .py-1 { padding-top: 2px; padding-bottom: 2px; }
+  .py-0\\.5 { padding-top: 1px; padding-bottom: 1px; }
+  .mb-1 { margin-bottom: 2px; }
+  .mb-2 { margin-bottom: 4px; }
+  .mb-3 { margin-bottom: 6px; }
+  .mt-1 { margin-top: 2px; }
+  .mt-2 { margin-top: 4px; }
+  .mt-3 { margin-top: 6px; }
   
   /* Largeurs pour le tableau */
   .w-6 { width: 20px; }
   .w-16 { width: 50px; }
+  .w-\\[18px\\] { width: 18px; min-width: 18px; max-width: 18px; }
   .w-\\[20px\\] { width: 20px; }
   .w-\\[35px\\] { width: 35px; }
+  .w-\\[40px\\] { width: 40px; min-width: 40px; max-width: 40px; }
+  .text-left { text-align: left; }
+  .pl-1 { padding-left: 4px; }
   
-  /* Dimensions */
-  .h-10 { height: 32px; }
-  .w-10 { width: 32px; }
-  .h-8 { height: 28px; }
-  .w-8 { width: 28px; }
-  .h-6 { height: 20px; }
-  .w-6 { width: 20px; }
-  .h-4 { height: 14px; }
-  .w-4 { width: 14px; }
-  .rounded { border-radius: 4px; }
-  .rounded-sm { border-radius: 2px; }
-  .rounded-lg { border-radius: 8px; }
+  /* Dimensions réduites */
+  .h-10 { height: 24px; }
+  .w-10 { width: 24px; }
+  .h-8 { height: 20px; }
+  .w-8 { width: 20px; }
+  .h-6 { height: 16px; }
+  .w-6 { width: 16px; }
+  .h-4 { height: 12px; }
+  .w-4 { width: 12px; }
+  .rounded { border-radius: 2px; }
+  .rounded-sm { border-radius: 1px; }
+  .rounded-lg { border-radius: 4px; }
   
   /* Utilitaires */
   .truncate { 
@@ -617,14 +658,14 @@ const getPrintStyles = () => `
     max-width: 70px; 
   }
   
-  /* Image / Logo */
+  /* Image / Logo réduit */
   img {
-    width: 28px !important;
-    height: 28px !important;
-    max-width: 28px !important;
-    max-height: 28px !important;
+    width: 20px !important;
+    height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
     object-fit: cover !important;
-    border-radius: 4px !important;
+    border-radius: 2px !important;
     display: block;
     margin: 0 auto;
   }
@@ -643,7 +684,7 @@ const getPrintStyles = () => `
     body { 
       width: 48mm; 
       padding: 0.5mm;
-      font-size: 10px;
+      font-size: 9px;
     }
     .print\\:hidden {
       display: none !important;
