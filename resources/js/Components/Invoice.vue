@@ -1,7 +1,8 @@
 <template>
-  <div class="invoice-container bg-white" ref="invoiceRef">
+  <!-- Ajout de la classe break-after-page pour isoler chaque facture à l'impression -->
+  <div class="invoice-container bg-white break-after-page" ref="invoiceRef">
     <!-- Invoice Header -->
-    <div class="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-8 rounded-t-xl">
+    <div class="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-8 rounded-t-xl header-print">
       <div class="flex justify-between items-start">
         <!-- Restaurant Info -->
         <div class="flex items-center gap-4">
@@ -22,7 +23,7 @@
 
         <!-- Invoice Info -->
         <div class="text-right">
-          <div class="bg-white/20 backdrop-blur rounded-lg px-4 py-2 inline-block">
+          <div class="bg-white/20 backdrop-blur rounded-lg px-4 py-2 inline-block shadow-print">
             <p class="text-primary-100 text-xs uppercase tracking-wider">Facture</p>
             <p class="text-2xl font-bold">#{{ String(order.id).padStart(6, '0') }}</p>
           </div>
@@ -69,7 +70,8 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="item in order.items" :key="item.id" class="hover:bg-gray-50">
+            <!-- avoid-break empêche qu'une ligne de produit soit coupée en deux sur deux pages -->
+            <tr v-for="item in order.items" :key="item.id" class="hover:bg-gray-50 avoid-break">
               <td class="py-4">
                 <p class="font-medium text-gray-900">{{ item.product?.name }}</p>
                 <p v-if="item.product?.category" class="text-xs text-gray-500">{{ item.product.category.name }}</p>
@@ -91,35 +93,30 @@
       </div>
 
       <!-- Totals -->
-      <div class="flex justify-end">
+      <div class="flex justify-end avoid-break">
         <div class="w-full md:w-80">
           <div class="space-y-3">
-            <!-- Sous-total -->
             <div class="flex justify-between text-gray-600">
               <span>Sous-total</span>
               <span>{{ formatCurrency(subtotal) }}</span>
             </div>
 
-            <!-- Taxe -->
             <div v-if="settings?.tax_rate > 0" class="flex justify-between text-gray-600">
               <span>TVA ({{ settings.tax_rate }}%)</span>
               <span>{{ formatCurrency(taxAmount) }}</span>
             </div>
 
-            <!-- Service -->
             <div v-if="settings?.service_charge > 0" class="flex justify-between text-gray-600">
               <span>Service ({{ settings.service_charge }}%)</span>
               <span>{{ formatCurrency(serviceAmount) }}</span>
             </div>
 
-            <!-- Divider -->
             <div class="border-t-2 border-gray-200 pt-3">
               <div class="flex justify-between items-center">
                 <span class="text-lg font-bold text-gray-900">Total</span>
                 <span class="text-2xl font-bold text-primary-600">{{ formatCurrency(order.total_amount) }}</span>
               </div>
               
-              <!-- Currency Equivalents -->
               <div v-if="exchangeRates && exchangeRates.length > 0" class="mt-3 pt-3 border-t border-gray-100">
                 <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Équivalent</p>
                 <div class="space-y-1">
@@ -136,8 +133,7 @@
             </div>
           </div>
 
-          <!-- Payment Info -->
-          <div v-if="order.payment || order.payments?.length" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-200">
+          <div v-if="order.payment || order.payments?.length" class="mt-6 p-4 bg-green-50 rounded-xl border border-green-200 bg-print-green">
             <div class="flex items-center gap-2 text-green-700 mb-2">
               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -152,7 +148,7 @@
       </div>
 
       <!-- Footer -->
-      <div class="mt-12 pt-8 border-t border-gray-200 text-center">
+      <div class="mt-12 pt-8 border-t border-gray-200 text-center avoid-break">
         <p class="text-gray-500 text-sm">Merci de votre visite !</p>
         <p v-if="settings?.email" class="text-gray-400 text-xs mt-1">{{ settings.email }}</p>
         <div class="mt-4 flex justify-center gap-4 text-xs text-gray-400">
