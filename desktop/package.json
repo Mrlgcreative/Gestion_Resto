@@ -1,0 +1,28 @@
+{
+    "name": "resto-desktop",
+    "version": "1.0.0",
+    "description": "Resto - Application de gestion restaurant (Desktop)",
+    "main": "electron/main.js",
+    "scripts": {
+        "dev": "electron .",
+        "build": "electron-builder",
+        "build:frontend": "cd backend && npm run build"
+    },
+    "dependencies": {
+        "electron-is-dev": "^2.0.0"
+    },
+    "devDependencies": {
+        "electron": "^33.0.0",
+        "electron-builder": "^25.0.0"
+    },
+    "build": {
+        "appId": "com.resto.desktop",
+        "productName": "Resto",
+        "directories": { "output": "dist" },
+        "files": ["electron/**/*", "backend/**/*"],
+        "extraResources": [{
+            "from": "php",
+            "to": "php"
+        }]
+    }
+}

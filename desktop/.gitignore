@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+backend/vendor/
+backend/.env
+frontend/dist/
+php/
+*.exe
